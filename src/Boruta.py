@@ -155,6 +155,27 @@ class Boruta(BaseEstimator, TransformerMixin):
                 for k, v in report_round.items():
                     LOGGER.info(f'{k}: {v}')
 
+    def report_final(self, full: bool = False):
+        counts = {'accepted': len(self.features_.accepted),
+                  'rejected': len(self.features_.rejected),
+                  'tentative': len(self.features_.tentative)}
+        history = self.features_.transform_history().dropna().round(2)
+        max_steps = history['Step'].max()
+        LOGGER.info(f'Stopped at {max_steps} step. Final results: {counts}')
+        if full:
+            for g, gg in history.groupby('Feature'):
+                total_hits = gg['Hit'].sum()
+                imp = gg['Importance']
+                imp_desc = {
+                    'min': imp.min(), 'max': imp.max(), 'median': imp.median(), 'mean': imp.mean(), 'std': imp.std()}
+                imp_desc = {k: round(v, 2) for k, v in imp_desc.items()}
+                last_step = gg.iloc[-1]
+                LOGGER.info(
+                    f'Feature {g} was marked at step {last_step["Step"]} and threshold {last_step["Threshold"]} '
+                    f'as {last_step["Decision"]}, having {last_step["Importance"]} importance ({imp_desc}) '
+                    f'and total number of hits {total_hits}'
+                )
+
     def _fit(self, x: pd.DataFrame, y: _Y, sample_weight: t.Optional[np.ndarray] = None,
              model: t.Any = None) -> "Boruta":
         self.dataset_ = Dataset(x, y, sample_weight)
@@ -233,6 +254,10 @@ class Boruta(BaseEstimator, TransformerMixin):
                 still_tentative = np.less(tentative_median, threshold_median)
                 LOGGER.info(f'Accepted {(~still_tentative).sum()} features')
                 self.features_.tentative_mask[self.features_.tentative_mask] = still_tentative
+
+        if self.verbose > 0:
+            self.report_final(full=self.verbose == 2)
+
         return self
 
     def _transform(self, x: _X, tentative: bool = False):

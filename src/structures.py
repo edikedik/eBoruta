@@ -197,14 +197,21 @@ class Features:
 
     def transform_history(self) -> pd.DataFrame:
         self.reset_history_index()
-        imp = self.melt_history(self.imp_history, 'Importance')
+        imp = self.melt_history(self.imp_history.drop(columns='Threshold'), 'Importance')
         hit = self.melt_history(self.hit_history, 'Hit')
-        dec = self.melt_history(self.dec_history, 'Decision').rename(
-            {'Decision': {0: 'Tentative', -1: 'Rejected', 1: 'Accepted'}})
+        dec = self.melt_history(self.dec_history, 'Decision')
+        threshold = self.imp_history.reset_index().rename(columns={'index': 'Step'})[['Step', 'Threshold']]
+        # imp = imp.merge(threshold, on='Step')
         _steps = imp['Step'].values
-        df = pd.concat((_x.drop(columns='Step') for _x in [imp, hit, dec]))
+        _feature = imp['Feature'].values
+        df = pd.concat((_x.drop(columns=['Step', 'Feature']) for _x in [imp, hit, dec]), axis=1)
         df['Step'] = _steps
-
+        df['Feature'] = _feature
+        # df = df[['Feature', 'Step', 'Importance', 'Hit', 'Decision']]
+        df = df[['Feature', 'Step', 'Importance', 'Hit', 'Decision']].merge(threshold, on='Step', how='left')
+        df['Decision'] = df['Decision'].map({0: 'Tentative', -1: 'Rejected', 1: 'Accepted'})
+        df['Step'] += 1
+        return df
 
 
 if __name__ == '__main__':
