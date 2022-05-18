@@ -185,7 +185,7 @@ class Boruta(BaseEstimator, TransformerMixin):
                 )
 
     def _fit(self, x: pd.DataFrame, y: _Y, sample_weight: t.Optional[np.ndarray] = None,
-             model: t.Any = None) -> "Boruta":
+             model: t.Any = None, **kwargs) -> "Boruta":
         self.dataset_ = Dataset(x, y, sample_weight)
         self.features_ = Features(self.dataset_.x.columns.to_numpy())
         if model is None:
@@ -200,7 +200,7 @@ class Boruta(BaseEstimator, TransformerMixin):
 
         iters = range(1, self.n_iter + 1)
         if self.verbose > 0:
-            iters = tqdm(iters, desc='BorutaShap trials')
+            iters = tqdm(iters, desc='Boruta trials')
 
         stratify = self.dataset_.y.copy() if self.use_test and self.test_stratify else None
 
@@ -208,8 +208,11 @@ class Boruta(BaseEstimator, TransformerMixin):
             trial_data = self.dataset_.generate_trial_sample(
                 columns=self.features_.tentative, stratify=stratify, test_size=self.test_size)
             LOGGER.info(f'Trial {trial_n}: sampled trial data with shapes {trial_data.shapes}')
-
-            self.model_.fit(trial_data.x_train, trial_data.y_train, sample_weight=trial_data.w_train)
+            if 'cat_features' in signature(self.model_.fit).parameters:
+                kwargs['cat_features'] = [
+                    i for i, c in enumerate(trial_data.x_test.columns)
+                    if pd.api.types.is_categorical_dtype(trial_data.x_test[c])]
+            self.model_.fit(trial_data.x_train, trial_data.y_train, sample_weight=trial_data.w_train, **kwargs)
             LOGGER.debug('Fitted the model')
 
             imp = self.importance(self.model_, trial_data)
@@ -256,7 +259,7 @@ class Boruta(BaseEstimator, TransformerMixin):
 
         return self
 
-    def _transform(self, x: _X, tentative: bool = False):
+    def _transform(self, x: _X, tentative: bool = False) -> pd.DataFrame:
         check_is_fitted(self, ['features_', 'dataset_', 'model_'])
         x = self.dataset_.convert_x(x)
 
@@ -277,10 +280,10 @@ class Boruta(BaseEstimator, TransformerMixin):
 
         return x[sel_columns]
 
-    def fit(self, x: _X, y: _Y, sample_weight=None, model: t.Any = None) -> "Boruta":
-        return self._fit(x, y, sample_weight=sample_weight, model=model)
+    def fit(self, x: _X, y: _Y, sample_weight=None, model: t.Any = None, **kwargs) -> "Boruta":
+        return self._fit(x, y, sample_weight=sample_weight, model=model, **kwargs)
 
-    def transform(self, x: _X, tentative: bool = False):
+    def transform(self, x: _X, tentative: bool = False) -> pd.DataFrame:
         return self._transform(x, tentative)
 
     def rough_fix(self, n_last_steps: t.Optional[int] = None) -> Features:

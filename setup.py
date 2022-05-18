@@ -1,8 +1,6 @@
 from distutils.core import setup
 from pathlib import Path
 
-from setuptools import find_packages
-
 
 README = Path('README.md')
 
@@ -17,7 +15,7 @@ setup(
     name='Boruta',
     version='0.1',
     author='Ivan Reveguk', author_email='ivan.reveguk@gmail.com',
-    description='Flexible sklearn-compatible tested python Boruta implementation',
+    description='Flexible transparent sklearn-compatible python Boruta implementation',
     long_description=get_readme(), long_description_content_type='text/markdown',
     url='https://github.com/edikedik/Boruta', license='MIT',
     classifiers=[
