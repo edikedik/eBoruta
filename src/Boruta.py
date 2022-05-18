@@ -1,5 +1,6 @@
 import logging
 import typing as t
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -22,7 +23,7 @@ class Boruta(BaseEstimator, TransformerMixin):
 
     def __init__(
             self, n_iter: int = 20,
-            classification: bool = True, percentile: int = 100, pvalue: float = 0.05, rough_fix: bool = True,
+            classification: bool = True, percentile: int = 100, pvalue: float = 0.05,
             use_test: bool = True, test_size: t.Union[float, int] = 0.3, test_stratify: t.Optional[bool] = True,
             shap_importance: bool = True, shap_use_gpu: bool = False,
             shap_approximate: bool = True, shap_check_additivity: bool = False,
@@ -33,7 +34,6 @@ class Boruta(BaseEstimator, TransformerMixin):
         self.percentile = percentile
         self.pvalue = pvalue
         self.classification = classification
-        self.rough_fix = rough_fix
         self.test_stratify = test_stratify
         self.use_test = use_test
         self.test_size = test_size
@@ -244,18 +244,6 @@ class Boruta(BaseEstimator, TransformerMixin):
                 LOGGER.info(f'No tentative features left, stopping at trial {trial_n}')
                 break
 
-        if self.rough_fix:
-            num_tentative = len(self.features_.tentative)
-            if num_tentative:
-                LOGGER.info(f'Applying "rough fix" to {num_tentative} tentative features')
-                tentative_median = self.features_.imp_history[self.features_.tentative].median()
-                threshold_median = self.features_.imp_history['Threshold'].median()
-                LOGGER.info(f'Median importance for tentative features throughout history: {tentative_median.values}')
-                LOGGER.info(f'Median {self.percentile}-th percentile threshold: {threshold_median}')
-                still_tentative = np.less(tentative_median, threshold_median)
-                LOGGER.info(f'Accepted {(~still_tentative).sum()} features')
-                self.features_.tentative_mask[self.features_.tentative_mask] = still_tentative
-
         if self.verbose > 0:
             self.report_final(full=self.verbose == 2)
 
@@ -287,6 +275,31 @@ class Boruta(BaseEstimator, TransformerMixin):
 
     def transform(self, x: _X, tentative: bool = False):
         return self._transform(x, tentative)
+
+    def rough_fix(self, n_last_steps: t.Optional[int] = None) -> Features:
+        if not hasattr(self, 'features_'):
+            raise ValueError('Applying rough fix with no recorded features')
+        num_tentative = len(self.features_.tentative)
+        features = deepcopy(self.features_)
+        if not num_tentative:
+            LOGGER.info('No tentative features to apply rough fix to')
+            return features
+        if n_last_steps is None:
+            n_last_steps = len(features.imp_history)
+        LOGGER.info(f'Applying "rough fix" to {num_tentative} tentative features using {n_last_steps} last steps')
+        tentative_median = features.imp_history.iloc[:n_last_steps][features.tentative].median()
+        threshold_median = features.imp_history.iloc[:n_last_steps]['Threshold'].median()
+        LOGGER.info(f'Median importance for tentative features throughout history: {tentative_median.values}')
+        LOGGER.info(f'Median {self.percentile}-th percentile threshold: {threshold_median}')
+        rejected = np.less(tentative_median, threshold_median)
+        accepted_names = features.names[features.tentative_mask][~rejected]
+        rejected_names = features.names[features.tentative_mask][rejected]
+        LOGGER.info(f'Accepted {(~rejected).sum()} ({accepted_names}) feature(s). '
+                    f'Rejected {rejected.sum()} ({rejected_names}) feature(s)')
+        features.accepted_mask[features.tentative_mask] = ~rejected
+        features.rejected_mask[features.tentative_mask] = rejected
+        features.tentative_mask[features.tentative_mask] = False
+        return features
 
 
 if __name__ == '__main__':
