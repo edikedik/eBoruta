@@ -1,6 +1,7 @@
 import logging
 import typing as t
 from copy import deepcopy
+from inspect import signature
 
 import numpy as np
 import pandas as pd
@@ -13,7 +14,7 @@ from statsmodels.stats.multitest import fdrcorrection
 from tqdm.auto import tqdm
 
 from Boruta.base import _X, _Y, _E
-from Boruta.structures import Dataset, Features
+from Boruta.structures import Dataset, Features, TrialData, ImportanceGetter
 from Boruta.utils import zip_partition
 
 LOGGER = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class Boruta(BaseEstimator, TransformerMixin):
             use_test: bool = True, test_size: t.Union[float, int] = 0.3, test_stratify: t.Optional[bool] = True,
             shap_importance: bool = True, shap_use_gpu: bool = False,
             shap_approximate: bool = True, shap_check_additivity: bool = False,
-            importance_getter: t.Optional[t.Callable[[_E], np.ndarray]] = None,
+            importance_getter: t.Optional[ImportanceGetter] = None,
             standardize_imp: bool = False, verbose: int = 1,
     ):
         self.n_iter = n_iter
@@ -85,12 +86,13 @@ class Boruta(BaseEstimator, TransformerMixin):
             values = np.mean(values, axis=0)
         return values
 
-    def importance(self, model, x: pd.DataFrame, abs_: bool = True):
+    def importance(self, model: _E, trial_data: TrialData, abs_: bool = True):
         if self.shap_importance:
             explainer_type = shap.explainers.GPUTree if self.shap_use_gpu else shap.explainers.Tree
             explainer = explainer_type(model)
             values = explainer.shap_values(
-                x, approximate=self.shap_approximate, check_additivity=self.shap_check_additivity)
+                trial_data.x_test, approximate=self.shap_approximate,
+                check_additivity=self.shap_check_additivity)
             # values is matrix of the same shape as x in case of single objective,
             # and a list of such matrices in case of multi-objective classification/regression
             # importance per objective is a mean of absolute shap values per feature
@@ -103,7 +105,10 @@ class Boruta(BaseEstimator, TransformerMixin):
             if self.importance_getter is None:
                 importances = self._get_importance(self.model_)
             else:
-                importances = self.importance_getter(model)
+                if 'trial_data' in signature(self.importance_getter).parameters:
+                    importances = self.importance_getter(model, trial_data)
+                else:
+                    importances = self.importance_getter(model)
             LOGGER.debug(f'Got array {importances.shape} of builtin importances')
 
         if self.standardize_imp:
@@ -207,7 +212,7 @@ class Boruta(BaseEstimator, TransformerMixin):
             self.model_.fit(trial_data.x_train, trial_data.y_train, sample_weight=trial_data.w_train)
             LOGGER.debug('Fitted the model')
 
-            imp = self.importance(self.model_, trial_data.x_test)
+            imp = self.importance(self.model_, trial_data)
             LOGGER.debug(f'Calculated {len(imp)} importance values')
 
             real_imp, shadow_imp = map(list, zip_partition(

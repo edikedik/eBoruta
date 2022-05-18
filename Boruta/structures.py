@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.utils import check_array
 
-from Boruta.base import _X, _Y, _W
+from Boruta.base import _X, _Y, _W, _E
 from Boruta.utils import convert_to_array, get_duplicates
 
 LOGGER = logging.getLogger(__name__)
@@ -219,6 +219,10 @@ class Features:
     def reset_history_index(self):
         for df in [self.imp_history, self.dec_history, self.hit_history]:
             df.reset_index(drop=True, inplace=True)
+
+
+class ImportanceGetter(t.Protocol):
+    def __call__(self, estimator: _E, trial_data: t.Optional[TrialData] = None) -> np.ndarray: ...
 
 
 if __name__ == '__main__':
