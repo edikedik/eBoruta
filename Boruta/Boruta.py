@@ -12,9 +12,9 @@ from sklearn.utils.validation import check_is_fitted
 from statsmodels.stats.multitest import fdrcorrection
 from tqdm.auto import tqdm
 
-from src.base import _X, _Y, _E
-from src.structures import Dataset, Features
-from src.utils import zip_partition
+from Boruta.base import _X, _Y, _E
+from Boruta.structures import Dataset, Features
+from Boruta.utils import zip_partition
 
 LOGGER = logging.getLogger(__name__)
 
@@ -75,8 +75,8 @@ class Boruta(BaseEstimator, TransformerMixin):
     @staticmethod
     def _get_importance(model: _E) -> np.ndarray:
         if not hasattr(model, 'feature_importances_'):
-            raise AttributeError('Builtin importance getter failed due to model not having "feauture_importances_')
-        values = model.feauture_importances_
+            raise AttributeError('Builtin importance getter failed due to model not having "feature_importances_')
+        values = model.feature_importances_
         if not isinstance(values, np.ndarray):
             values = np.array(values)
         if len(values.shape) == 2:

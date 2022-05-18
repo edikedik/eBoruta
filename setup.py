@@ -25,9 +25,10 @@ setup(
             "Programming Language :: Python :: 3",
             "Programming Language :: Python :: 3.8",
         ],
-    package_dir={'': 'src'},
+    # package_dir={'': 'Boruta'},
     python_requires='>=3.8',
-    packages=find_packages(),
+    packages=['Boruta'],
+    package_dir={'Boruta': 'Boruta'},
     install_requires=[
         'scikit-learn>=1.0.2',
         'numpy',

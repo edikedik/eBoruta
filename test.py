@@ -6,7 +6,7 @@ from sklearn.datasets import make_classification, make_regression
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.utils.estimator_checks import parametrize_with_checks
 
-from src.Boruta import Boruta
+from Boruta.Boruta import Boruta
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)

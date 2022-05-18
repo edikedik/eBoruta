@@ -8,8 +8,8 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.utils import check_array
 
-from src.base import _X, _Y, _W
-from src.utils import convert_to_array, get_duplicates
+from Boruta.base import _X, _Y, _W
+from Boruta.utils import convert_to_array, get_duplicates
 
 LOGGER = logging.getLogger(__name__)
 
