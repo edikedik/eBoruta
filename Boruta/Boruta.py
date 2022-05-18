@@ -44,10 +44,12 @@ class Boruta(BaseEstimator, TransformerMixin):
         self.shap_check_additivity = shap_check_additivity
         self.importance_getter = importance_getter
 
-        if verbose >= 2:
+        if verbose >= 3:
             LOGGER.setLevel(logging.DEBUG)
-        elif verbose == 1:
+        elif verbose == 2:
             LOGGER.setLevel(logging.INFO)
+        elif verbose == 1:
+            LOGGER.setLevel(logging.WARNING)
         elif verbose <= 0:
             LOGGER.setLevel(logging.ERROR)
         self.verbose = verbose
@@ -126,8 +128,9 @@ class Boruta(BaseEstimator, TransformerMixin):
 
         return accepted, rejected
 
+    @staticmethod
     def _report_trial(
-            self, features: Features, accepted: np.ndarray, rejected: np.ndarray,
+            features: Features, accepted: np.ndarray, rejected: np.ndarray,
             tentative: np.ndarray, pbar: t.Optional[tqdm] = None):
         names = features.names[tentative]
         accepted_names = names[accepted]
@@ -150,16 +153,15 @@ class Boruta(BaseEstimator, TransformerMixin):
         if pbar is not None:
             pbar.set_postfix(counts_total)
 
-        if self.verbose > 0:
-            if self.verbose > 1:
-                for k, v in report_round.items():
-                    LOGGER.info(f'{k}: {v}')
+        for k, v in report_round.items():
+            LOGGER.debug(f'{k}: {v}')
 
-    def report_final(self, full: bool = False):
+    def report_features(self, features: t.Optional[Features] = None, full: bool = False):
         counts = {'accepted': len(self.features_.accepted),
                   'rejected': len(self.features_.rejected),
                   'tentative': len(self.features_.tentative)}
-        history = self.features_.history.dropna()
+        features = self.features_ if features is None else features
+        history = features.history.dropna()
         max_steps = history['Step'].max()
         LOGGER.info(f'Stopped at {max_steps} step. Final results: {counts}')
         if full:
@@ -245,7 +247,7 @@ class Boruta(BaseEstimator, TransformerMixin):
                 break
 
         if self.verbose > 0:
-            self.report_final(full=self.verbose == 2)
+            self.report_features(full=self.verbose == 2)
 
         return self
 

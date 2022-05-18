@@ -1,5 +1,8 @@
+import logging
+import sys
 import typing as t
 from itertools import tee
+from pathlib import Path
 
 import numpy as np
 
@@ -32,6 +35,35 @@ def get_duplicates(it: t.Iterable[A]) -> t.Iterator[A]:
             yield x
 
 
+def setup_logger(
+        log_path: t.Optional[t.Union[str, Path]] = None, file_level: t.Optional[int] = None,
+        stdout_level: t.Optional[int] = None, stderr_level: t.Optional[int] = None,
+        logger: t.Optional[logging.Logger] = None
+) -> logging.Logger:
+
+    formatter = logging.Formatter(
+        '%(asctime)s %(levelname)s [%(module)s--%(funcName)s]: %(message)s')
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
+    if log_path is not None:
+        level = file_level or logging.DEBUG
+        handler = logging.FileHandler(log_path, 'w')
+        handler.setFormatter(formatter)
+        handler.setLevel(level)
+        logger.addHandler(handler)
+    if stderr_level is not None:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(formatter)
+        handler.setLevel(stderr_level)
+        logger.addHandler(handler)
+    if stdout_level is not None:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(formatter)
+        handler.setLevel(stdout_level)
+        logger.addHandler(handler)
+
+    return logger
 
 
 if __name__ == '__main__':
