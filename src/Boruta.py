@@ -27,7 +27,7 @@ class Boruta(BaseEstimator, TransformerMixin):
             shap_importance: bool = True, shap_use_gpu: bool = False,
             shap_approximate: bool = True, shap_check_additivity: bool = False,
             importance_getter: t.Optional[t.Callable[[_E], np.ndarray]] = None,
-            standardize_imp: bool = False, verbose: int = 2,
+            standardize_imp: bool = False, verbose: int = 1,
     ):
         self.n_iter = n_iter
         self.percentile = percentile
@@ -159,7 +159,7 @@ class Boruta(BaseEstimator, TransformerMixin):
         counts = {'accepted': len(self.features_.accepted),
                   'rejected': len(self.features_.rejected),
                   'tentative': len(self.features_.tentative)}
-        history = self.features_.transform_history().dropna().round(2)
+        history = self.features_.history.dropna()
         max_steps = history['Step'].max()
         LOGGER.info(f'Stopped at {max_steps} step. Final results: {counts}')
         if full:
@@ -171,8 +171,9 @@ class Boruta(BaseEstimator, TransformerMixin):
                 imp_desc = {k: round(v, 2) for k, v in imp_desc.items()}
                 last_step = gg.iloc[-1]
                 LOGGER.info(
-                    f'Feature {g} was marked at step {last_step["Step"]} and threshold {last_step["Threshold"]} '
-                    f'as {last_step["Decision"]}, having {last_step["Importance"]} importance ({imp_desc}) '
+                    f'Feature {g} was marked at step {last_step["Step"]} and threshold '
+                    f'{round(last_step["Threshold"], 2)} as {last_step["Decision"]}, having '
+                    f'{round(last_step["Importance"], 2)} importance ({imp_desc}) '
                     f'and total number of hits {total_hits}'
                 )
 
@@ -199,7 +200,7 @@ class Boruta(BaseEstimator, TransformerMixin):
         for trial_n in iters:
             trial_data = self.dataset_.generate_trial_sample(
                 columns=self.features_.tentative, stratify=stratify, test_size=self.test_size)
-            LOGGER.info(f'Trial {trial_n}: Generated trial data with shapes {trial_data.shapes}')
+            LOGGER.info(f'Trial {trial_n}: sampled trial data with shapes {trial_data.shapes}')
 
             self.model_.fit(trial_data.x_train, trial_data.y_train, sample_weight=trial_data.w_train)
             LOGGER.debug('Fitted the model')
