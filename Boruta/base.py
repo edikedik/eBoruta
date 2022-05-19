@@ -10,10 +10,13 @@ _W = t.TypeVar('_W', pd.Series, np.ndarray)
 
 
 class Estimator(t.Protocol):
+    # feature_importances_: t.Union[np.ndarray, t.List[int], t.List[t.List[int]]]
     # In general, something that defines a fit method
     def fit(self, x, y, **kwargs) -> "Estimator": ...
 
-    def feature_importances_(self): ...
+    def predict(self, x: _X, **kwargs) -> np.ndarray: ...
+
+    def get_params(self) -> t.Dict[str, t.Any]: ...
 
 
 _E = t.TypeVar('_E', RandomForestClassifier, RandomForestRegressor, Estimator)

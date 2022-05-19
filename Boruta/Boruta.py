@@ -14,6 +14,7 @@ from statsmodels.stats.multitest import fdrcorrection
 from tqdm.auto import tqdm
 
 from Boruta.base import _X, _Y, _E
+from Boruta.callbacks import Callback
 from Boruta.structures import Dataset, Features, TrialData, ImportanceGetter
 from Boruta.utils import zip_partition
 
@@ -21,6 +22,9 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Boruta(BaseEstimator, TransformerMixin):
+    """
+    Flexible sklearn-compatible feature selection wrapper method.
+    """
 
     def __init__(
             self, n_iter: int = 20,
@@ -31,6 +35,24 @@ class Boruta(BaseEstimator, TransformerMixin):
             importance_getter: t.Optional[ImportanceGetter] = None,
             standardize_imp: bool = False, verbose: int = 1,
     ):
+        """
+        :param n_iter: The number of trials to run the algorithm.
+        :param classification: `True` if the task is classification else `False`.
+        :param percentile: Percentile of the shadow features as alternative to `max` in original Boruta.
+        :param pvalue: Level of rejecting the null hypothesis (the absence of a feature's importance).
+        :param use_test: Use test set instead of the full training set to compute feature importances.
+        :param test_size: The `test_size` paramter passed to `train_test_split`. Can be a number or a fraction.
+        :param test_stratify: Stratify the test examples based on the `y` class values to balance the split.
+        :param shap_importance: Use importance values based on `shap` package, specifically the `Tree` explainer.
+        :param shap_use_gpu: Use `GPUTree` explainer.
+        :param shap_approximate: Approximate shap importance values. Caution! some estimators may not support it.
+        :param shap_check_additivity: Passed to the explainer. Consult with `shap` documentation.
+        :param importance_getter: A callable accepting either an estimator or an estimator and `TrialData` instance
+            and returning a numpy array of length equal to the number of features in `TrialData.x_test`.
+        :param standardize_imp: Standardize importance values.
+        :param verbose: 0 -- no output; 1 -- progress bar; 2 -- progress bar and logging; 3 -- debug mode
+        """
+
         self.n_iter = n_iter
         self.percentile = percentile
         self.pvalue = pvalue
@@ -185,7 +207,7 @@ class Boruta(BaseEstimator, TransformerMixin):
                 )
 
     def _fit(self, x: pd.DataFrame, y: _Y, sample_weight: t.Optional[np.ndarray] = None,
-             model: t.Any = None, **kwargs) -> "Boruta":
+             model: t.Any = None, callbacks: t.Optional[t.Sequence[Callback]] = None, **kwargs) -> "Boruta":
         self.dataset_ = Dataset(x, y, sample_weight)
         self.features_ = Features(self.dataset_.x.columns.to_numpy())
         if model is None:
@@ -202,11 +224,14 @@ class Boruta(BaseEstimator, TransformerMixin):
         if self.verbose > 0:
             iters = tqdm(iters, desc='Boruta trials')
 
-        stratify = self.dataset_.y.copy() if self.use_test and self.test_stratify else None
+        generator_kwargs = {}
+        if self.use_test:
+            generator_kwargs['test_size'] = self.test_size
+            # TODO: test how it works in case of multiple objectives
+            generator_kwargs['stratify'] = self.dataset_.y.copy()
 
         for trial_n in iters:
-            trial_data = self.dataset_.generate_trial_sample(
-                columns=self.features_.tentative, stratify=stratify, test_size=self.test_size)
+            trial_data = self.dataset_.generate_trial_sample(columns=self.features_.tentative, **generator_kwargs)
             LOGGER.info(f'Trial {trial_n}: sampled trial data with shapes {trial_data.shapes}')
             if 'cat_features' in signature(self.model_.fit).parameters:
                 kwargs['cat_features'] = [
@@ -247,6 +272,12 @@ class Boruta(BaseEstimator, TransformerMixin):
             dec_upd = dict(zip(self.features_.names, decisions))
             self.features_.dec_history = pd.concat([self.features_.dec_history, pd.DataFrame.from_records([dec_upd])])
 
+            if callbacks is not None:
+                for c in callbacks:
+                    LOGGER.debug(f'Running callback {c}')
+                    self.model_, self.features_, self.dataset_, trial_data = c(
+                        self.model_, self.features_, self.dataset_, trial_data)
+
             self._report_trial(
                 self.features_, accepted, rejected, initial_tentative, iters if isinstance(iters, tqdm) else None)
 
@@ -280,8 +311,9 @@ class Boruta(BaseEstimator, TransformerMixin):
 
         return x[sel_columns]
 
-    def fit(self, x: _X, y: _Y, sample_weight=None, model: t.Any = None, **kwargs) -> "Boruta":
-        return self._fit(x, y, sample_weight=sample_weight, model=model, **kwargs)
+    def fit(self, x: _X, y: _Y, sample_weight=None, model: t.Any = None,
+            callbacks: t.Optional[t.Sequence[Callback]] = None, **kwargs) -> "Boruta":
+        return self._fit(x, y, sample_weight=sample_weight, model=model, callbacks=callbacks, **kwargs)
 
     def transform(self, x: _X, tentative: bool = False) -> pd.DataFrame:
         return self._transform(x, tentative)

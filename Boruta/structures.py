@@ -55,7 +55,7 @@ class Dataset:
                 raise ValueError('Reshape your data: 1D input for x is not allowed')
             x = pd.DataFrame(x, columns=list(map(str, range(1, x.shape[1] + 1))))
         elif isinstance(x, pd.DataFrame):
-            x = x
+            x = x.copy().reset_index(drop=True)
         else:
             LOGGER.warning('Trying to convert x into an array')
             x = convert_to_array(x)
@@ -170,19 +170,19 @@ class Features:
         self.dec_history = pd.DataFrame(columns=self.names)
 
     @property
-    def accepted(self):
+    def accepted(self) -> np.ndarray:
         return self.names[self.accepted_mask]
 
     @property
-    def rejected(self):
+    def rejected(self) -> np.ndarray:
         return self.names[self.rejected_mask]
 
     @property
-    def tentative(self):
+    def tentative(self) -> np.ndarray:
         return self.names[self.tentative_mask]
 
     @property
-    def history(self):
+    def history(self) -> pd.DataFrame:
         if self._history is None:
             self._history = self.compose_history()
         return self._history
@@ -206,7 +206,7 @@ class Features:
         return df
 
     @staticmethod
-    def melt_history(df: pd.DataFrame, value_name: str):
+    def melt_history(df: pd.DataFrame, value_name: str) -> pd.DataFrame:
         df = df.copy()
         columns = df.columns
         df['Step'] = np.arange(len(df), dtype=int)
@@ -216,7 +216,7 @@ class Features:
         )
         return df
 
-    def reset_history_index(self):
+    def reset_history_index(self) -> None:
         for df in [self.imp_history, self.dec_history, self.hit_history]:
             df.reset_index(drop=True, inplace=True)
 
