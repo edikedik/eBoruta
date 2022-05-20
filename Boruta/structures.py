@@ -225,5 +225,12 @@ class ImportanceGetter(t.Protocol):
     def __call__(self, estimator: _E, trial_data: t.Optional[TrialData] = None) -> np.ndarray: ...
 
 
+class CVImportanceGetter:
+    # TODO: A special type of importance getter: `fit` is ommitted in the core loop and instead performed
+    # within this class, computing importances in a CV manner and aggregating the results.
+    # Thus, should be as abstract as possible allowing for custom importance evaluations and CV protocols.
+    pass
+
+
 if __name__ == '__main__':
     raise RuntimeError

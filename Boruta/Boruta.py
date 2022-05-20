@@ -14,7 +14,7 @@ from statsmodels.stats.multitest import fdrcorrection
 from tqdm.auto import tqdm
 
 from Boruta.base import _X, _Y, _E
-from Boruta.callbacks import Callback
+from Boruta.callbacks import Callback, CallbackReturn
 from Boruta.structures import Dataset, Features, TrialData, ImportanceGetter
 from Boruta.utils import zip_partition
 
@@ -50,7 +50,7 @@ class Boruta(BaseEstimator, TransformerMixin):
         :param importance_getter: A callable accepting either an estimator or an estimator and `TrialData` instance
             and returning a numpy array of length equal to the number of features in `TrialData.x_test`.
         :param standardize_imp: Standardize importance values.
-        :param verbose: 0 -- no output; 1 -- progress bar; 2 -- progress bar and logging; 3 -- debug mode
+        :param verbose: 0 -- no output; 1 -- progress bar; 2 -- progress bar and info; 3 -- debug mode
         """
 
         self.n_iter = n_iter
@@ -77,9 +77,9 @@ class Boruta(BaseEstimator, TransformerMixin):
             LOGGER.setLevel(logging.ERROR)
         self.verbose = verbose
 
-        self.check_params()
+        self._check_params()
 
-    def check_params(self):
+    def _check_params(self):
         try:
             assert self.n_iter >= 1
             assert 0 < self.percentile <= 100
@@ -90,7 +90,7 @@ class Boruta(BaseEstimator, TransformerMixin):
             raise AttributeError(f'Using "test_stratify" with regressors is not possible')
 
     @staticmethod
-    def check_model(model):
+    def _check_model(model):
         has_fit = hasattr(model, 'fit')
         has_predict = hasattr(model, 'predict')
 
@@ -109,6 +109,14 @@ class Boruta(BaseEstimator, TransformerMixin):
         return values
 
     def importance(self, model: _E, trial_data: TrialData, abs_: bool = True):
+        """
+
+        :param model: Estimator with `fit` method. In case of using `shap` importance, a tree-based estimator
+            supported by `Tree` explainer is expceted.
+        :param trial_data:
+        :param abs_:
+        :return:
+        """
         if self.shap_importance:
             explainer_type = shap.explainers.GPUTree if self.shap_use_gpu else shap.explainers.Tree
             explainer = explainer_type(model)
@@ -154,6 +162,13 @@ class Boruta(BaseEstimator, TransformerMixin):
         rejected = _test_hits(hits_total, 'less')
 
         return accepted, rejected
+
+    def _call_callbacks(self, trial_data: TrialData, callbacks: t.Sequence[Callback], **kwargs) -> CallbackReturn:
+        for c in callbacks:
+            LOGGER.debug(f'Running callback {c}')
+            self.model_, self.features_, self.dataset_, trial_data, kwargs = c(
+                self.model_, self.features_, self.dataset_, trial_data)
+        return self.model_, self.features_, self.dataset_, trial_data, kwargs
 
     @staticmethod
     def _report_trial(
@@ -207,7 +222,9 @@ class Boruta(BaseEstimator, TransformerMixin):
                 )
 
     def _fit(self, x: pd.DataFrame, y: _Y, sample_weight: t.Optional[np.ndarray] = None,
-             model: t.Any = None, callbacks: t.Optional[t.Sequence[Callback]] = None, **kwargs) -> "Boruta":
+             model: t.Any = None, callbacks_trial_start: t.Optional[t.Sequence[Callback]] = None,
+             callbacks_trial_end: t.Optional[t.Sequence[Callback]] = None,
+             **kwargs) -> "Boruta":
         self.dataset_ = Dataset(x, y, sample_weight)
         self.features_ = Features(self.dataset_.x.columns.to_numpy())
         if model is None:
@@ -218,7 +235,7 @@ class Boruta(BaseEstimator, TransformerMixin):
         else:
             self.model_ = model
 
-        self.check_model(self.model_)
+        self._check_model(self.model_)
 
         iters = range(1, self.n_iter + 1)
         if self.verbose > 0:
@@ -233,10 +250,11 @@ class Boruta(BaseEstimator, TransformerMixin):
         for trial_n in iters:
             trial_data = self.dataset_.generate_trial_sample(columns=self.features_.tentative, **generator_kwargs)
             LOGGER.info(f'Trial {trial_n}: sampled trial data with shapes {trial_data.shapes}')
-            if 'cat_features' in signature(self.model_.fit).parameters:
-                kwargs['cat_features'] = [
-                    i for i, c in enumerate(trial_data.x_test.columns)
-                    if pd.api.types.is_categorical_dtype(trial_data.x_test[c])]
+
+            if callbacks_trial_start is not None:
+                self.model_, self.features_, self.dataset_, trial_data, kwargs = self._call_callbacks(
+                    trial_data, callbacks_trial_start, **kwargs)
+
             self.model_.fit(trial_data.x_train, trial_data.y_train, sample_weight=trial_data.w_train, **kwargs)
             LOGGER.debug('Fitted the model')
 
@@ -272,11 +290,9 @@ class Boruta(BaseEstimator, TransformerMixin):
             dec_upd = dict(zip(self.features_.names, decisions))
             self.features_.dec_history = pd.concat([self.features_.dec_history, pd.DataFrame.from_records([dec_upd])])
 
-            if callbacks is not None:
-                for c in callbacks:
-                    LOGGER.debug(f'Running callback {c}')
-                    self.model_, self.features_, self.dataset_, trial_data = c(
-                        self.model_, self.features_, self.dataset_, trial_data)
+            if callbacks_trial_end is not None:
+                self.model_, self.features_, self.dataset_, trial_data, kwargs = self._call_callbacks(
+                    trial_data, callbacks_trial_end)
 
             self._report_trial(
                 self.features_, accepted, rejected, initial_tentative, iters if isinstance(iters, tqdm) else None)
@@ -312,8 +328,12 @@ class Boruta(BaseEstimator, TransformerMixin):
         return x[sel_columns]
 
     def fit(self, x: _X, y: _Y, sample_weight=None, model: t.Any = None,
-            callbacks: t.Optional[t.Sequence[Callback]] = None, **kwargs) -> "Boruta":
-        return self._fit(x, y, sample_weight=sample_weight, model=model, callbacks=callbacks, **kwargs)
+            callbacks_trial_start: t.Optional[t.Sequence[Callback]] = None,
+            callbacks_trial_end: t.Optional[t.Sequence[Callback]] = None,
+            **kwargs) -> "Boruta":
+        return self._fit(
+            x, y, sample_weight=sample_weight, model=model,
+            callbacks_trial_start=callbacks_trial_start, callbacks_trial_end = callbacks_trial_end, **kwargs)
 
     def transform(self, x: _X, tentative: bool = False) -> pd.DataFrame:
         return self._transform(x, tentative)
