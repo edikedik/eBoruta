@@ -10,6 +10,7 @@ Welcome to eBoruta's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   notebooks
    modules
 
 

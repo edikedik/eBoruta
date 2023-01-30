@@ -4,6 +4,9 @@
 
 .idea/*
 
+docs/_*
+docs/notebooks
+
 # User-specific stuff
 .idea/**/workspace.xml
 .idea/**/tasks.xml
