@@ -77,6 +77,10 @@ exclude = ["scripts", "docs", "test", "notebooks"]
 #module = "toolz.*"
 #ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "sklearn.*"
+ignore_missing_imports = true
+
 [tool.pylint.format]
 max-line-length = "88"
 good-names = "i, j, k, x, df, l, m, n, f, fn, e"
