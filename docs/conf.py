@@ -74,7 +74,7 @@ html_theme_options = {
     "color_accent": "light-green",
     # Set the repo location to get a badge with stats
     "repo_url": "https://github.com/edikedik/eBoruta/",
-    "repo_name": "lXtractor",
+    "repo_name": "eBoruta",
     # Visible levels of the global TOC; -1 means unlimited
     "globaltoc_depth": 4,
     # If False, expand all TOC entries
