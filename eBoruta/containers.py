@@ -1,3 +1,6 @@
+"""
+Types holding intermediate and final data for the algorithm.
+"""
 import logging
 import typing as t
 from collections import Counter
@@ -15,16 +18,26 @@ LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class TrialData:
+class TrialData(t.Generic[_Y]):
+    """
+    Data for a Boruta trial.
+    """
+
     x_train: pd.DataFrame
     x_test: pd.DataFrame
     y_train: _Y
     y_test: _Y
+    #: Weights for train and test folds
     w_train: t.Optional[np.ndarray] = None
     w_test: t.Optional[np.ndarray] = None
 
     @property
     def shapes(self) -> str:
+        """
+        Descriptor property.
+
+        :return: a string with shapes of x and y attributes.
+        """
         return (
             f"x_train: {self.x_train.shape}, y_train: {self.y_train.shape}, "
             f"x_test: {self.x_test.shape}, y_test: {self.y_test.shape}"
@@ -32,7 +45,12 @@ class TrialData:
 
 
 @dataclass
-class Dataset:
+class Dataset(t.Generic[_X, _Y]):
+    """
+    A container holding permanent data (x, y and weights) for
+    training/validation/testing/etc.
+    """
+
     x: _X
     y: _Y
     w: t.Optional[np.ndarray] = None
@@ -47,7 +65,7 @@ class Dataset:
 
         if y_missing:
             raise AttributeError("Missing values in y")
-        elif x_missing:
+        if x_missing:
             LOGGER.warning("Detected missing values in x")
 
     @staticmethod
@@ -75,7 +93,7 @@ class Dataset:
         elif isinstance(y, pd.Series):
             y = y.values
         elif isinstance(y, np.ndarray):
-            y = y
+            pass
         else:
             LOGGER.warning("Trying to convert y into an array")
             y = convert_to_array(y)
@@ -86,10 +104,11 @@ class Dataset:
     def convert_w(w: t.Optional[_W]) -> t.Optional[np.ndarray]:
         if w is None:
             return None
-        elif isinstance(w, pd.Series):
+
+        if isinstance(w, pd.Series):
             w = w.values
         elif isinstance(w, np.ndarray):
-            w = w
+            pass
         else:
             LOGGER.warning("Trying to convert w into an array")
             w = convert_to_array(w)
@@ -101,28 +120,24 @@ class Dataset:
         try:
             if isinstance(a, pd.DataFrame):
                 return a.isna().any().any()
-            elif isinstance(a, pd.Series):
+            if isinstance(a, pd.Series):
                 return a.isna().any()
-            elif isinstance(a, np.ndarray):
+            if isinstance(a, np.ndarray):
                 return np.isnan(a).any()
-            else:
-                LOGGER.warning(
-                    f"input array must be a pandas Dataframe or a numpy array, got {type(a)}"
-                )
-                return False
+            LOGGER.warning(f"Unsupported input array type {type(a)}")
+            return False
         except Exception as e:
+            LOGGER.exception(e)
             LOGGER.warning(f"Failed to check input for missing values due to {e}")
             return False
 
     def generate_trial_sample(
         self, columns: t.Union[None, t.List[str], np.ndarray] = None, **kwargs
     ) -> TrialData:
-        if isinstance(columns, np.ndarray):
-            columns = columns.tolist()
-        elif isinstance(columns, t.List):
-            columns = columns
-        else:
+        if columns is None:
             columns = list(self.x.columns)
+        if not isinstance(columns, list):
+            columns = list(columns)
 
         x_init = self.x[columns].copy()
         LOGGER.debug(f"Using columns {columns} as features")

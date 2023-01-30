@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from eBoruta.base import _E, _X
-from eBoruta.structures import Features, Dataset, TrialData
+from eBoruta.containers import Features, Dataset, TrialData
 
 CallbackReturn = t.Tuple[_E, Features, Dataset, TrialData, t.Dict[str, t.Any]]
 Score = t.Callable[[_E, _X, _X], np.ndarray]

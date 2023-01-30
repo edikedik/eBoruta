@@ -1,3 +1,8 @@
+"""
+Base types and objects to inherit from.
+"""
+from __future__ import annotations
+
 import typing as t
 
 import numpy as np
@@ -10,16 +15,25 @@ _W = t.TypeVar("_W", pd.Series, np.ndarray)
 
 
 class Estimator(t.Protocol):
-    # feature_importances_: t.Union[np.ndarray, t.List[int], t.List[t.List[int]]]
-    # In general, something that defines a fit method
-    def fit(self, x, y, **kwargs) -> "Estimator":
-        ...
+    """
+    An estimator protocol encapsulating methods strictly necessary for
+    the main algorithm's functioning.
+    """
+
+    def fit(self, x, y, **kwargs) -> Estimator:
+        """
+        Fit the estimator.
+        """
 
     def predict(self, x: _X, **kwargs) -> np.ndarray:
-        ...
+        """
+        Make predictions.
+        """
 
-    def get_params(self) -> t.Dict[str, t.Any]:
-        ...
+    def get_params(self) -> dict[str, t.Any]:
+        """
+        Get a dict with the estimator's params.
+        """
 
 
 _E = t.TypeVar("_E", RandomForestClassifier, RandomForestRegressor, Estimator)

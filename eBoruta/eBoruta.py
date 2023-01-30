@@ -15,7 +15,7 @@ from tqdm.auto import tqdm
 
 from eBoruta.base import _X, _Y, _E
 from eBoruta.callbacks import Callback, CallbackReturn
-from eBoruta.structures import Dataset, Features, TrialData, ImportanceGetter
+from eBoruta.containers import Dataset, Features, TrialData, ImportanceGetter
 from eBoruta.utils import zip_partition
 
 LOGGER = logging.getLogger(__name__)
@@ -125,8 +125,9 @@ class eBoruta(BaseEstimator, TransformerMixin):
     def importance(self, model: _E, trial_data: TrialData, abs_: bool = True):
         """
 
-        :param model: Estimator with `fit` method. In case of using `shap` importance, a tree-based estimator
-            supported by `Tree` explainer is expceted.
+        :param model: Estimator with `fit` method. In case of using `shap`
+            importance, a tree-based estimator supported by `Tree` explainer
+            is expected.
         :param trial_data:
         :param abs_:
         :return:
