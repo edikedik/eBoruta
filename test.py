@@ -6,7 +6,7 @@ from sklearn.datasets import make_classification, make_regression
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.utils.estimator_checks import parametrize_with_checks
 
-from Boruta.Boruta import Boruta
+from eBoruta.eBoruta import eBoruta
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.DEBUG)
@@ -67,7 +67,7 @@ def regressors():
     return models
 
 
-@parametrize_with_checks([Boruta()])
+@parametrize_with_checks([eBoruta()])
 def test_sklearn_compatible(estimator, check):
     # not expected to pass all the tests (even sklearn models don't seem to), although passes ~90%
     # even though, the test is convenient to check which functionality is absent
@@ -76,7 +76,7 @@ def test_sklearn_compatible(estimator, check):
 
 def test_models(classifiers, classification_data, regressors, regression_data):
     x, y = classification_data
-    boruta = Boruta(n_iter=20, verbose=0)
+    boruta = eBoruta(n_iter=20, verbose=0)
     for name, model in classifiers:
         try:
             boruta.shap_approximate = name != 'catboost'
@@ -84,7 +84,7 @@ def test_models(classifiers, classification_data, regressors, regression_data):
         except Exception as e:
             assert False, f'Failed to run classifier {name} due to {e}'
     x, y = regression_data
-    boruta = Boruta(n_iter=20, verbose=0, classification=False, test_stratify=False)
+    boruta = eBoruta(n_iter=20, verbose=0, classification=False, test_stratify=False)
     for name, model in regressors:
         try:
             boruta.shap_approximate = name != 'catboost'
@@ -98,7 +98,7 @@ def test_params(classification_data):
     params = [{'shap_importance': False}, {'standardize_imp': True}, {'use_test': False}, {'rough_fix': False}]
     for param_set in params:
         try:
-            boruta = Boruta(verbose=0, n_iter=10, **param_set)
+            boruta = eBoruta(verbose=0, n_iter=10, **param_set)
             boruta.fit(x, y)
         except Exception as e:
             assert False, f'Failed on param set {param_set} due to {e}'
@@ -107,7 +107,7 @@ def test_params(classification_data):
 def test_multiobjective(classification_data, classifiers_multiobjective):
     x, y = make_classification()
     y = np.array([[_y, _y] for _y in y])
-    boruta = Boruta(n_iter=20, verbose=0)
+    boruta = eBoruta(n_iter=20, verbose=0)
     for name, model in classifiers_multiobjective:
         try:
             boruta.fit(x, y, model=model)

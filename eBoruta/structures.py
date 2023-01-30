@@ -8,8 +8,8 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.utils import check_array
 
-from Boruta.base import _X, _Y, _W, _E
-from Boruta.utils import convert_to_array, get_duplicates
+from eBoruta.base import _X, _Y, _W, _E
+from eBoruta.utils import convert_to_array, get_duplicates
 
 LOGGER = logging.getLogger(__name__)
 
@@ -25,8 +25,10 @@ class TrialData:
 
     @property
     def shapes(self) -> str:
-        return (f'x_train: {self.x_train.shape}, y_train: {self.y_train.shape}, '
-                f'x_test: {self.x_test.shape}, y_test: {self.y_test.shape}')
+        return (
+            f"x_train: {self.x_train.shape}, y_train: {self.y_train.shape}, "
+            f"x_test: {self.x_test.shape}, y_test: {self.y_test.shape}"
+        )
 
 
 @dataclass
@@ -44,24 +46,26 @@ class Dataset:
         y_missing = self._check_input(self.y)
 
         if y_missing:
-            raise AttributeError('Missing values in y')
+            raise AttributeError("Missing values in y")
         elif x_missing:
-            LOGGER.warning('Detected missing values in x')
+            LOGGER.warning("Detected missing values in x")
 
     @staticmethod
     def convert_x(x: _X) -> pd.DataFrame:
         if isinstance(x, np.ndarray):
             if len(x.shape) == 1:
-                raise ValueError('Reshape your data: 1D input for x is not allowed')
+                raise ValueError("Reshape your data: 1D input for x is not allowed")
             x = pd.DataFrame(x, columns=list(map(str, range(1, x.shape[1] + 1))))
         elif isinstance(x, pd.DataFrame):
             x = x.copy().reset_index(drop=True)
         else:
-            LOGGER.warning('Trying to convert x into an array')
+            LOGGER.warning("Trying to convert x into an array")
             x = convert_to_array(x)
             num_features = x.shape[1] if len(x.shape) == 2 else 1
             x = pd.DataFrame(x, columns=list(map(str, range(1, num_features + 1))))
-        check_array(x.values, force_all_finite='allow-nan', ensure_2d=False, accept_sparse=False)
+        check_array(
+            x.values, force_all_finite="allow-nan", ensure_2d=False, accept_sparse=False
+        )
         return x
 
     @staticmethod
@@ -73,7 +77,7 @@ class Dataset:
         elif isinstance(y, np.ndarray):
             y = y
         else:
-            LOGGER.warning('Trying to convert y into an array')
+            LOGGER.warning("Trying to convert y into an array")
             y = convert_to_array(y)
         check_array(y, ensure_2d=False)
         return y
@@ -87,7 +91,7 @@ class Dataset:
         elif isinstance(w, np.ndarray):
             w = w
         else:
-            LOGGER.warning('Trying to convert w into an array')
+            LOGGER.warning("Trying to convert w into an array")
             w = convert_to_array(w)
         check_array(w, ensure_2d=False)
         return w
@@ -102,13 +106,17 @@ class Dataset:
             elif isinstance(a, np.ndarray):
                 return np.isnan(a).any()
             else:
-                LOGGER.warning(f'input array must be a pandas Dataframe or a numpy array, got {type(a)}')
+                LOGGER.warning(
+                    f"input array must be a pandas Dataframe or a numpy array, got {type(a)}"
+                )
                 return False
         except Exception as e:
-            LOGGER.warning(f'Failed to check input for missing values due to {e}')
+            LOGGER.warning(f"Failed to check input for missing values due to {e}")
             return False
 
-    def generate_trial_sample(self, columns: t.Union[None, t.List[str], np.ndarray] = None, **kwargs) -> TrialData:
+    def generate_trial_sample(
+        self, columns: t.Union[None, t.List[str], np.ndarray] = None, **kwargs
+    ) -> TrialData:
         if isinstance(columns, np.ndarray):
             columns = columns.tolist()
         elif isinstance(columns, t.List):
@@ -117,32 +125,50 @@ class Dataset:
             columns = list(self.x.columns)
 
         x_init = self.x[columns].copy()
-        LOGGER.debug(f'Using columns {columns} as features')
-        x_shadow = self.x[columns].copy().sample(frac=1).reset_index(drop=True).rename(
-            columns={c: f'shadow_{c}' for c in columns})
+        LOGGER.debug(f"Using columns {columns} as features")
+        x_shadow = (
+            self.x[columns]
+            .copy()
+            .sample(frac=1)
+            .reset_index(drop=True)
+            .rename(columns={c: f"shadow_{c}" for c in columns})
+        )
 
         if self.min_features is not None:
             n_add_samples = self.min_features - len(columns)
             if n_add_samples > 0:
-                sampled = x_shadow.sample(n=n_add_samples, axis=1, replace=True).sample(frac=1).reset_index(drop=True)
+                sampled = (
+                    x_shadow.sample(n=n_add_samples, axis=1, replace=True)
+                    .sample(frac=1)
+                    .reset_index(drop=True)
+                )
                 name_counts = Counter(sampled.columns)
                 for name, count in name_counts.items():
-                    d = {name: [f'{name}_{i}' for i in range(count)]}
-                    sampled.rename(columns=lambda c: d[c].pop(0) if c in d.keys() else c, inplace=True)
+                    d = {name: [f"{name}_{i}" for i in range(count)]}
+                    sampled.rename(
+                        columns=lambda c: d[c].pop(0) if c in d.keys() else c,
+                        inplace=True,
+                    )
                 x_shadow = pd.concat([x_shadow, sampled], axis=1)
-                LOGGER.debug(f'Added {sampled.shape[1]} columns to reach '
-                             f'the min number of features {self.min_features}')
+                LOGGER.debug(
+                    f"Added {sampled.shape[1]} columns to reach "
+                    f"the min number of features {self.min_features}"
+                )
 
-        LOGGER.debug(f'Created a dataset of shadow features with shape {x_shadow.shape}')
+        LOGGER.debug(
+            f"Created a dataset of shadow features with shape {x_shadow.shape}"
+        )
         x = pd.concat([x_init, x_shadow], axis=1)
         duplicates = list(get_duplicates(x.columns))
         if duplicates:
-            raise RuntimeError(f'Features contain duplicate names {duplicates}')
-        LOGGER.debug(f'Merged with initial dataset to get a dataset with shape {x.shape}')
+            raise RuntimeError(f"Features contain duplicate names {duplicates}")
+        LOGGER.debug(
+            f"Merged with initial dataset to get a dataset with shape {x.shape}"
+        )
         y = self.y.copy()
         w = self.w.copy() if self.w is not None else self.w
 
-        test_size = kwargs.get('test_size')
+        test_size = kwargs.get("test_size")
         if test_size is None:
             return TrialData(x, x, y, y, w, w)
         if self.w is None:
@@ -163,7 +189,9 @@ class Features:
 
     def __post_init__(self):
         n = len(self.names)
-        self.accepted_mask, self.rejected_mask = np.zeros(n).astype(bool), np.zeros(n).astype(bool)
+        self.accepted_mask, self.rejected_mask = np.zeros(n).astype(bool), np.zeros(
+            n
+        ).astype(bool)
         self.tentative_mask = np.ones(n).astype(bool)
         self.hit_history = pd.DataFrame(columns=self.names)
         self.imp_history = pd.DataFrame(columns=self.names)
@@ -189,30 +217,44 @@ class Features:
 
     def compose_history(self) -> pd.DataFrame:
         if self._history is not None:
-            LOGGER.warning(f'Overwriting existing history with shape {self._history.shape}')
+            LOGGER.warning(
+                f"Overwriting existing history with shape {self._history.shape}"
+            )
         self.reset_history_index()
-        imp = self.melt_history(self.imp_history.drop(columns='Threshold'), 'Importance')
-        hit = self.melt_history(self.hit_history, 'Hit')
-        dec = self.melt_history(self.dec_history, 'Decision')
-        threshold = self.imp_history.reset_index().rename(columns={'index': 'Step'})[['Step', 'Threshold']]
-        _steps = imp['Step'].values
-        _feature = imp['Feature'].values
-        df = pd.concat((_x.drop(columns=['Step', 'Feature']) for _x in [imp, hit, dec]), axis=1)
-        df['Step'] = _steps
-        df['Feature'] = _feature
-        df = df[['Feature', 'Step', 'Importance', 'Hit', 'Decision']].merge(threshold, on='Step', how='left')
-        df['Decision'] = df['Decision'].map({0: 'Tentative', -1: 'Rejected', 1: 'Accepted'})
-        df['Step'] += 1
+        imp = self.melt_history(
+            self.imp_history.drop(columns="Threshold"), "Importance"
+        )
+        hit = self.melt_history(self.hit_history, "Hit")
+        dec = self.melt_history(self.dec_history, "Decision")
+        threshold = self.imp_history.reset_index().rename(columns={"index": "Step"})[
+            ["Step", "Threshold"]
+        ]
+        _steps = imp["Step"].values
+        _feature = imp["Feature"].values
+        df = pd.concat(
+            (_x.drop(columns=["Step", "Feature"]) for _x in [imp, hit, dec]), axis=1
+        )
+        df["Step"] = _steps
+        df["Feature"] = _feature
+        df = df[["Feature", "Step", "Importance", "Hit", "Decision"]].merge(
+            threshold, on="Step", how="left"
+        )
+        df["Decision"] = df["Decision"].map(
+            {0: "Tentative", -1: "Rejected", 1: "Accepted"}
+        )
+        df["Step"] += 1
         return df
 
     @staticmethod
     def melt_history(df: pd.DataFrame, value_name: str) -> pd.DataFrame:
         df = df.copy()
         columns = df.columns
-        df['Step'] = np.arange(len(df), dtype=int)
+        df["Step"] = np.arange(len(df), dtype=int)
         df = df.melt(
-            id_vars='Step', value_vars=columns,
-            var_name='Feature', value_name=value_name
+            id_vars="Step",
+            value_vars=columns,
+            var_name="Feature",
+            value_name=value_name,
         )
         return df
 
@@ -222,7 +264,10 @@ class Features:
 
 
 class ImportanceGetter(t.Protocol):
-    def __call__(self, estimator: _E, trial_data: t.Optional[TrialData] = None) -> np.ndarray: ...
+    def __call__(
+        self, estimator: _E, trial_data: t.Optional[TrialData] = None
+    ) -> np.ndarray:
+        ...
 
 
 class CVImportanceGetter:
@@ -232,5 +277,5 @@ class CVImportanceGetter:
     pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     raise RuntimeError

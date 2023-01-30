@@ -1,0 +1,96 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "eBoruta"
+description = 'Extended Boruta -- a flexible transparent sklearn-compatible python Boruta implementation'
+readme = "README.rst"
+requires-python = ">=3.10"
+license = "MIT"
+keywords = []
+authors = [
+    { name = "Ivan Reveguk", email = "ivan.reveguk@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+    'scikit-learn>=1.0.2',
+    'numpy',
+    'pandas',
+    'statsmodels',
+    'tqdm',
+    'scipy',
+    'shap>=0.40.0'
+]
+dynamic = ["version"]
+
+[project.urls]
+Documentation = "https://github.com/edikedik/eBoruta#readme"
+Issues = "https://github.com/edikedik/eBoruta/issues"
+Source = "https://github.com/edikedik/eBoruta"
+
+#[project.scripts]
+
+[tool.hatch.version]
+path = "eBoruta/__about__.py"
+
+[tool.hatch.envs.test]
+dependencies = [
+    "pytest",
+    "pytest-cov",
+]
+[tool.hatch.envs.test.scripts]
+cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=kinactive --cov=tests {args}"
+no-cov = "cov --no-cov {args}"
+
+[[tool.hatch.envs.test.matrix]]
+python = ["310", "311"]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+omit = [
+    "eBoruta/__about__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "no cov",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+no_implicit_optional = true
+exclude = ["scripts", "docs", "test", "notebooks"]
+
+#[[tool.mypy.overrides]]
+#module = "toolz.*"
+#ignore_missing_imports = true
+
+[tool.pylint.format]
+max-line-length = "88"
+good-names = "i, j, k, x, df, l, m, n, f, fn, e"
+
+[tool.pylint."MESSAGES CONTROL"]
+disable = [
+    "too-few-public-methods",
+    "too-many-public-methods",
+    "too-many-arguments",
+    "too-many-locals",
+    "too-many-instance-attributes",
+    "logging-fstring-interpolation",
+    "invalid-name",
+    "eval-used",
+    "exec-used",
+    "broad-except"
+]
