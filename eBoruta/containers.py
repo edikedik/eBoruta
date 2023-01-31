@@ -11,10 +11,10 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.utils import check_array
 
-from eBoruta.base import _X, _Y, _W, ValidationError
-from eBoruta.utils import convert_to_array, get_duplicates
+from eBoruta.base import _X, _Y, ValidationError
+from eBoruta.dataprep import prepare_x, prepare_y, prepare_w, has_missing
+from eBoruta.utils import get_duplicates
 
 LOGGER = logging.getLogger(__name__)
 
@@ -46,123 +46,18 @@ class TrialData(t.Generic[_Y]):
         )
 
 
-@dataclass
+# @dataclass
 class Dataset(t.Generic[_X, _Y]):
     """
     A container holding permanent data (x, y and weights) for
     training/validation/testing/etc.
     """
+    def __init__(self, x: t.Any, y: t.Any, w: t.Any, min_features: int = 5):
+        self.x, self.y, self.w = prepare_x(x), prepare_y(y), prepare_w(w)
+        self.min_features = min_features
 
-    x: _X
-    y: _Y
-    w: t.Optional[np.ndarray] = None
-    min_features: t.Optional[int] = 5
-
-    def __post_init__(self):
-        self.x = self.prepare_x(self.x)
-        self.y = self.convert_y(self.y)
-        self.w = self.convert_w(self.w)
-        x_missing = self._check_input(self.x)
-        y_missing = self._check_input(self.y)
-
-        if y_missing:
+        if has_missing(self.y):
             raise ValidationError("Missing values in y")
-        if x_missing:
-            LOGGER.warning("Detected missing values in x")
-
-    @staticmethod
-    def prepare_x(x: _X) -> pd.DataFrame:
-        """
-        Prepare input variables.
-
-        If it's a 2D array or something convertible
-        to one, create a ``pd.DataFrame`` with variables named "1", ... "N",
-        where "N" is the number of columns.
-        If it's already a ``DataFrame``, copy and reset it's index.
-
-        Then, the ``DataFrame`` is validated by :func:`sklearn.util.
-        validation.check_array` to contain 2D, not sparce and potentially
-        NaN-containing array of values.
-
-        :param x: Input data.
-        :return: A DataFrame verified for the algorithm's usage.
-        """
-        if isinstance(x, np.ndarray):
-            if len(x.shape) == 1:
-                raise ValidationError("Reshape your data: 1D input for x is not allowed")
-            x = pd.DataFrame(x, columns=list(map(str, range(1, x.shape[1] + 1))))
-        elif isinstance(x, pd.DataFrame):
-            x = x.copy().reset_index(drop=True)
-        else:
-            LOGGER.warning("Trying to convert x into an array")
-            x = convert_to_array(x)
-            num_features = x.shape[1] if len(x.shape) == 2 else 1
-            x = pd.DataFrame(x, columns=list(map(str, range(1, num_features + 1))))
-        check_array(
-            x.values, force_all_finite="allow-nan", ensure_2d=False, accept_sparse=False
-        )
-        return x
-
-    @staticmethod
-    def convert_y(y: _Y) -> np.ndarray:
-        # TODO: consider dropping forcing 1D input to allow multiple targets.
-        """
-        Prepare target variables.
-
-        If ``y`` is a ``pd.DataFrame`` or ``pd.Series``, take its values and
-        apply ``np.squeeze`` to remove redundant dimensions.
-        If ``y`` is an ``np.array``, pass. Otherwise, try converting into
-        an ``np.array``. Finally, check array doesn't contain ``NaN``.
-
-        :param y: input data.
-        :return: an array containing target variable.
-        """
-        if isinstance(y, (pd.DataFrame, pd.Series)):
-            y = np.squeeze(y.values)
-        elif isinstance(y, np.ndarray):
-            pass
-        else:
-            LOGGER.warning("Trying to convert y into an array")
-            y = convert_to_array(y)
-        check_array(y, ensure_2d=False)
-        return y
-
-    @staticmethod
-    def convert_w(w: _W | None) -> np.ndarray | None:
-        """
-        Prepare sample weights.
-
-        :param w: A series, array or something convertible to a 1D array.
-        :return: Sample weights applied in models supporting ones.
-        """
-        if w is None:
-            return None
-
-        if isinstance(w, pd.Series):
-            w = w.values
-        elif isinstance(w, np.ndarray):
-            pass
-        else:
-            LOGGER.warning("Trying to convert w into an array")
-            w = convert_to_array(w)
-        check_array(w, ensure_2d=False)
-        return w
-
-    @staticmethod
-    def _check_input(a: t.Any) -> t.TypeGuard[pd.DataFrame | pd.Series | np.ndarray]:
-        try:
-            if isinstance(a, pd.DataFrame):
-                return a.isna().any().any()
-            if isinstance(a, pd.Series):
-                return a.isna().any()
-            if isinstance(a, np.ndarray):
-                return np.isnan(a).any()
-            LOGGER.warning(f"Unsupported input array type {type(a)}")
-            return False
-        except Exception as e:
-            LOGGER.exception(e)
-            LOGGER.warning(f"Failed to check input for missing values due to {e}")
-            return False
 
     def generate_trial_sample(
         self, columns: None | list[str] | np.ndarray = None, **kwargs
@@ -252,6 +147,7 @@ class Features:
     A dynamic container representing a set of features used by Boruta
     throughout the run.
     """
+
     #: An array of feature names.
     names: np.ndarray
     accepted_mask: np.ndarray = field(init=False)
