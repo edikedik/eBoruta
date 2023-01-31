@@ -17,6 +17,13 @@ from eBoruta.utils import convert_to_array
 LOGGER = logging.getLogger(__name__)
 
 
+def _check_array(a: t.Any, **kwargs):
+    try:
+        check_array(a, **kwargs)
+    except Exception as e:
+        raise ValidationError("Failed to validate an array with `check_array()`") from e
+
+
 def prepare_x(x: t.Any) -> pd.DataFrame:
     """
     Prepare input variables.
@@ -44,8 +51,8 @@ def prepare_x(x: t.Any) -> pd.DataFrame:
         x = convert_to_array(x)
         num_features = x.shape[1] if len(x.shape) == 2 else 1
         x = pd.DataFrame(x, columns=list(map(str, range(1, num_features + 1))))
-    assert isinstance(x, pd.DataFrame), 'Unsuccessful converting to df'
-    check_array(
+    assert isinstance(x, pd.DataFrame), "Unsuccessful converting to df"
+    _check_array(
         x.values, force_all_finite="allow-nan", ensure_2d=False, accept_sparse=False
     )
     return x
@@ -70,8 +77,8 @@ def prepare_y(y: t.Any) -> np.ndarray:
     else:
         LOGGER.debug("Trying to convert y into an array")
         y = convert_to_array(y)
-    assert isinstance(y, np.ndarray), 'Failed converting to np array'
-    check_array(y, ensure_2d=False, force_all_finite=True, ensure_min_features=True)
+    assert isinstance(y, np.ndarray), "Failed converting to np array"
+    _check_array(y, ensure_2d=False, force_all_finite=True, ensure_min_features=True)
     return y
 
 
@@ -93,10 +100,10 @@ def prepare_w(w: t.Any) -> np.ndarray | None:
     else:
         LOGGER.debug("Trying to convert w into an array")
         w = convert_to_array(w)
-    assert isinstance(w, np.ndarray), 'Failed converting to np array'
-    check_array(w, ensure_2d=False, force_all_finite=True, ensure_min_features=True)
+    assert isinstance(w, np.ndarray), "Failed converting to np array"
+    _check_array(w, ensure_2d=False, force_all_finite=True, ensure_min_features=True)
     if len(w.shape) != 1:
-        raise ValidationError(f'Weights must be 1D. Got shape(w)={w.shape}')
+        raise ValidationError(f"Weights must be 1D. Got shape(w)={w.shape}")
     return w
 
 

@@ -52,12 +52,44 @@ class Dataset(t.Generic[_X, _Y]):
     A container holding permanent data (x, y and weights) for
     training/validation/testing/etc.
     """
-    def __init__(self, x: t.Any, y: t.Any, w: t.Any, min_features: int = 5):
-        self.x, self.y, self.w = prepare_x(x), prepare_y(y), prepare_w(w)
+
+    def __init__(self, x: t.Any, y: t.Any, w: t.Any = None, min_features: int = 5):
+        self._x, self._y, self._w = prepare_x(x), prepare_y(y), prepare_w(w)
         self.min_features = min_features
 
         if has_missing(self.y):
             raise ValidationError("Missing values in y")
+        if len(self.x) != len(self.y):
+            raise ValidationError(
+                f"The number of observations in x {len(self.x)} "
+                f"does not match the number in y {len(self.y)}"
+            )
+        if self.w is not None and len(self.x) != len(self.w):
+            raise ValidationError(
+                f"The number of observations in x {len(self.x)} "
+                f"does not match the number in w {len(self.w)}"
+            )
+
+    @property
+    def x(self) -> pd.DataFrame:
+        """
+        :return: Variables' dataframe.
+        """
+        return self._x
+
+    @property
+    def y(self) -> np.ndarray:
+        """
+        :return: Target variables' array.
+        """
+        return self._y
+
+    @property
+    def w(self) -> np.ndarray | None:
+        """
+        :return: Sample weights' array.
+        """
+        return self._w
 
     def generate_trial_sample(
         self, columns: None | list[str] | np.ndarray = None, **kwargs
