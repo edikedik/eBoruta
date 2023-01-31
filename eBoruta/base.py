@@ -9,6 +9,9 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
+if t.TYPE_CHECKING:
+    from eBoruta import TrialData
+
 _X = t.TypeVar("_X", pd.DataFrame, np.ndarray)
 _Y = t.TypeVar("_Y", pd.DataFrame, pd.Series, np.ndarray)
 _W = t.TypeVar("_W", pd.Series, np.ndarray)
@@ -37,6 +40,21 @@ class Estimator(t.Protocol):
 
 
 _E = t.TypeVar("_E", RandomForestClassifier, RandomForestRegressor, Estimator)
+
+
+class ImportanceGetter(t.Protocol):
+    def __call__(
+        self, estimator: _E, trial_data: TrialData | None = None
+    ) -> np.ndarray:
+        ...
+
+
+# class CVImportanceGetter:
+#     # TODO: A special type of importance getter: `fit` is ommitted in the core loop and instead performed
+#     # within this class, computing importances in a CV manner and aggregating the results.
+#     # Thus, should be as abstract as possible allowing for custom importance evaluations and CV protocols.
+#     pass
+
 
 if __name__ == "__main__":
     raise RuntimeError

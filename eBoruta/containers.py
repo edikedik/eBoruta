@@ -1,6 +1,8 @@
 """
 Types holding intermediate and final data for the algorithm.
 """
+from __future__ import annotations
+
 import logging
 import typing as t
 from collections import Counter
@@ -11,7 +13,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.utils import check_array
 
-from eBoruta.base import _X, _Y, _W, _E
+from eBoruta.base import _X, _Y, _W
 from eBoruta.utils import convert_to_array, get_duplicates
 
 LOGGER = logging.getLogger(__name__)
@@ -57,7 +59,7 @@ class Dataset(t.Generic[_X, _Y]):
     min_features: t.Optional[int] = 5
 
     def __post_init__(self):
-        self.x = self.convert_x(self.x)
+        self.x = self.prepare_x(self.x)
         self.y = self.convert_y(self.y)
         self.w = self.convert_w(self.w)
         x_missing = self._check_input(self.x)
@@ -69,7 +71,22 @@ class Dataset(t.Generic[_X, _Y]):
             LOGGER.warning("Detected missing values in x")
 
     @staticmethod
-    def convert_x(x: _X) -> pd.DataFrame:
+    def prepare_x(x: _X) -> pd.DataFrame:
+        """
+        Prepare input variables.
+
+        If it's a 2D array or something convertible
+        to one, create a ``pd.DataFrame`` with variables named "1", ... "N",
+        where "N" is the number of columns.
+        If it's already a ``DataFrame``, copy and reset it's index.
+
+        Then, the ``DataFrame`` is validated by :func:`sklearn.util.
+        validation.check_array` to contain 2D, not sparce and potentially
+        NaN-containing array of values.
+
+        :param x: Input data.
+        :return: A DataFrame verified for the algorithm's usage.
+        """
         if isinstance(x, np.ndarray):
             if len(x.shape) == 1:
                 raise ValueError("Reshape your data: 1D input for x is not allowed")
@@ -88,10 +105,20 @@ class Dataset(t.Generic[_X, _Y]):
 
     @staticmethod
     def convert_y(y: _Y) -> np.ndarray:
-        if isinstance(y, pd.DataFrame):
-            y = y.values
-        elif isinstance(y, pd.Series):
-            y = y.values
+        # TODO: consider dropping forcing 1D input to allow multiple targets.
+        """
+        Prepare target variables.
+
+        If ``y`` is a ``pd.DataFrame`` or ``pd.Series``, take its values and
+        apply ``np.squeeze`` to remove redundant dimensions.
+        If ``y`` is an ``np.array``, pass. Otherwise, try converting into
+        an ``np.array``. Finally, check array doesn't contain ``NaN``.
+
+        :param y: input data.
+        :return: an array containing target variable.
+        """
+        if isinstance(y, (pd.DataFrame, pd.Series)):
+            y = np.squeeze(y.values)
         elif isinstance(y, np.ndarray):
             pass
         else:
@@ -101,7 +128,13 @@ class Dataset(t.Generic[_X, _Y]):
         return y
 
     @staticmethod
-    def convert_w(w: t.Optional[_W]) -> t.Optional[np.ndarray]:
+    def convert_w(w: _W | None) -> np.ndarray | None:
+        """
+        Prepare sample weights.
+
+        :param w: A series, array or something convertible to a 1D array.
+        :return: Sample weights applied in models supporting ones.
+        """
         if w is None:
             return None
 
@@ -116,7 +149,7 @@ class Dataset(t.Generic[_X, _Y]):
         return w
 
     @staticmethod
-    def _check_input(a: t.Union[pd.DataFrame, pd.Series, np.ndarray]) -> bool:
+    def _check_input(a: t.Any) -> t.TypeGuard[pd.DataFrame | pd.Series | np.ndarray]:
         try:
             if isinstance(a, pd.DataFrame):
                 return a.isna().any().any()
@@ -132,8 +165,30 @@ class Dataset(t.Generic[_X, _Y]):
             return False
 
     def generate_trial_sample(
-        self, columns: t.Union[None, t.List[str], np.ndarray] = None, **kwargs
+        self, columns: None | list[str] | np.ndarray = None, **kwargs
     ) -> TrialData:
+        """
+        Generates data for a single Boruta trial based on :attr:`x`, :attr:`y`,
+        and :attr:`w`. Creates a copy of :attr:`x`, permutes rows, and renames
+        columns as "shadow_{original_name}". Concatenates original dataframe
+        and the one with the shadow features to create a copy of the learning
+        data with at least twice as many features.
+
+        If the number of features in :attr:`x` after selecting by ``columns``
+        is below :attr:`min_features`, randomly oversample existing features
+        to account for the difference. Thus, the returned dataframe to always
+        have at least :attr:`min_features` columns.
+
+        :param columns: An optional list or array of columns to select from
+            :attr:`x`.
+        :param kwargs: Keyword args passed to :func:`train_test_split` used to
+            create train/test splits. Enable this feature by passing
+            ``test_size={f}`` where ``f`` is the test size fraction.
+            This allows using different datasets for training and importance
+            computation.
+        :return: A prepared trial data.
+        :raises RuntimeError: If resulting features have duplicate names.
+        """
         if columns is None:
             columns = list(self.x.columns)
         if not isinstance(columns, list):
@@ -193,6 +248,11 @@ class Dataset(t.Generic[_X, _Y]):
 
 @dataclass
 class Features:
+    """
+    A dynamic container representing a set of features used by Boruta
+    throughout the run.
+    """
+    #: An array of feature names.
     names: np.ndarray
     accepted_mask: np.ndarray = field(init=False)
     rejected_mask: np.ndarray = field(init=False)
@@ -200,7 +260,7 @@ class Features:
     hit_history: pd.DataFrame = field(init=False)
     imp_history: pd.DataFrame = field(init=False)
     dec_history: pd.DataFrame = field(init=False)
-    _history: t.Optional[pd.DataFrame] = None
+    _history: pd.DataFrame | None = None
 
     def __post_init__(self):
         n = len(self.names)
@@ -214,23 +274,41 @@ class Features:
 
     @property
     def accepted(self) -> np.ndarray:
+        """
+        return: An array of feature names marked as accepted.
+        """
         return self.names[self.accepted_mask]
 
     @property
     def rejected(self) -> np.ndarray:
+        """
+        :return: An array of feature names marked as rejected.
+        """
         return self.names[self.rejected_mask]
 
     @property
     def tentative(self) -> np.ndarray:
+        """
+        :return: An array of feature names marked as tentative.
+        """
         return self.names[self.tentative_mask]
 
     @property
     def history(self) -> pd.DataFrame:
+        """
+        :return: A history dataframe created using :meth:`compose_summary` if
+            it doesn't exist.
+        """
         if self._history is None:
             self._history = self.compose_history()
         return self._history
 
     def compose_history(self) -> pd.DataFrame:
+        """
+        Access the selection history and compose a summary table.
+
+        :return: A history dataframe.
+        """
         if self._history is not None:
             LOGGER.warning(
                 f"Overwriting existing history with shape {self._history.shape}"
@@ -274,22 +352,12 @@ class Features:
         return df
 
     def reset_history_index(self) -> None:
+        """
+        Bulk-:meth:`pd.DataFrame.reset_index`. of importance, decision and
+        hit history dataframes.
+        """
         for df in [self.imp_history, self.dec_history, self.hit_history]:
             df.reset_index(drop=True, inplace=True)
-
-
-class ImportanceGetter(t.Protocol):
-    def __call__(
-        self, estimator: _E, trial_data: t.Optional[TrialData] = None
-    ) -> np.ndarray:
-        ...
-
-
-class CVImportanceGetter:
-    # TODO: A special type of importance getter: `fit` is ommitted in the core loop and instead performed
-    # within this class, computing importances in a CV manner and aggregating the results.
-    # Thus, should be as abstract as possible allowing for custom importance evaluations and CV protocols.
-    pass
 
 
 if __name__ == "__main__":

@@ -1,3 +1,6 @@
+"""
+A module containing eBoruta masterclass encapsulating algorithm's execution.
+"""
 import logging
 import typing as t
 from copy import deepcopy
@@ -13,9 +16,9 @@ from sklearn.utils.validation import check_is_fitted
 from statsmodels.stats.multitest import fdrcorrection
 from tqdm.auto import tqdm
 
-from eBoruta.base import _X, _Y, _E
+from eBoruta.base import _X, _Y, _E, ImportanceGetter
 from eBoruta.callbacks import Callback, CallbackReturn
-from eBoruta.containers import Dataset, Features, TrialData, ImportanceGetter
+from eBoruta.containers import Dataset, Features, TrialData
 from eBoruta.utils import zip_partition
 
 LOGGER = logging.getLogger(__name__)
@@ -404,7 +407,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
 
     def _transform(self, x: _X, tentative: bool = False) -> pd.DataFrame:
         check_is_fitted(self, ["features_", "dataset_", "model_"])
-        x = self.dataset_.convert_x(x)
+        x = self.dataset_.prepare_x(x)
 
         if x.shape[1] != self.dataset_.x.shape[1]:
             raise ValueError(

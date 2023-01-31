@@ -20,13 +20,19 @@ def zip_partition(
     )
 
 
-def convert_to_array(a):
+def convert_to_array(a: t.Any) -> np.ndarray:
+    """
+    :param a: Any object.
+    :return: An ``np.array(a)``.
+    :raise TypeError: if the above fails.
+    """
     try:
         return np.array(a)
     except Exception as e:
         raise TypeError(
-            f"Input type is not supported: failed to convert type {type(a)} into an array due to {e}"
-        )
+            f"Input type is not supported: failed to convert type {type(a)} "
+            f"into an array due to {e}"
+        ) from e
 
 
 def get_duplicates(it: t.Iterable[A]) -> t.Iterator[A]:
