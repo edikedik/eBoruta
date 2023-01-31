@@ -13,7 +13,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.utils import check_array
 
-from eBoruta.base import _X, _Y, _W
+from eBoruta.base import _X, _Y, _W, ValidationError
 from eBoruta.utils import convert_to_array, get_duplicates
 
 LOGGER = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class Dataset(t.Generic[_X, _Y]):
         y_missing = self._check_input(self.y)
 
         if y_missing:
-            raise AttributeError("Missing values in y")
+            raise ValidationError("Missing values in y")
         if x_missing:
             LOGGER.warning("Detected missing values in x")
 
@@ -89,7 +89,7 @@ class Dataset(t.Generic[_X, _Y]):
         """
         if isinstance(x, np.ndarray):
             if len(x.shape) == 1:
-                raise ValueError("Reshape your data: 1D input for x is not allowed")
+                raise ValidationError("Reshape your data: 1D input for x is not allowed")
             x = pd.DataFrame(x, columns=list(map(str, range(1, x.shape[1] + 1))))
         elif isinstance(x, pd.DataFrame):
             x = x.copy().reset_index(drop=True)

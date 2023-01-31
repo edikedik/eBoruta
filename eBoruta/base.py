@@ -55,6 +55,12 @@ class ImportanceGetter(t.Protocol):
 #     # Thus, should be as abstract as possible allowing for custom importance evaluations and CV protocols.
 #     pass
 
+class ValidationError(ValueError):
+    """
+    Cases of failure to validate data.
+    """
+    pass
+
 
 if __name__ == "__main__":
     raise RuntimeError

@@ -16,7 +16,7 @@ from sklearn.utils.validation import check_is_fitted
 from statsmodels.stats.multitest import fdrcorrection
 from tqdm.auto import tqdm
 
-from eBoruta.base import _X, _Y, _E, ImportanceGetter
+from eBoruta.base import _X, _Y, _E, ImportanceGetter, ValidationError
 from eBoruta.callbacks import Callback, CallbackReturn
 from eBoruta.containers import Dataset, Features, TrialData
 from eBoruta.utils import zip_partition
@@ -48,20 +48,32 @@ class eBoruta(BaseEstimator, TransformerMixin):
     ):
         """
         :param n_iter: The number of trials to run the algorithm.
-        :param classification: `True` if the task is classification else `False`.
-        :param percentile: Percentile of the shadow features as alternative to `max` in original Boruta.
-        :param pvalue: Level of rejecting the null hypothesis (the absence of a feature's importance).
-        :param use_test: Use test set instead of the full training set to compute feature importances.
-        :param test_size: The `test_size` paramter passed to `train_test_split`. Can be a number or a fraction.
-        :param test_stratify: Stratify the test examples based on the `y` class values to balance the split.
-        :param shap_importance: Use importance values based on `shap` package, specifically the `Tree` explainer.
+        :param classification: `True` if the task is classification else
+            `False`.
+        :param percentile: Percentile of the shadow features as alternative
+            to `max` in original Boruta.
+        :param pvalue: Level of rejecting the null hypothesis
+            (the absence of a feature's importance).
+        :param use_test: Use test set instead of the full training set
+            to compute feature importances.
+        :param test_size: The `test_size` param passed to `train_test_split`.
+            Can be a number or a fraction.
+        :param test_stratify: Stratify the test examples based on the `y` class
+            values to balance the split.
+        :param shap_importance: Use importance values based on `shap` package,
+            specifically the `Tree` explainer.
         :param shap_use_gpu: Use `GPUTree` explainer.
-        :param shap_approximate: Approximate shap importance values. Caution! some estimators may not support it.
-        :param shap_check_additivity: Passed to the explainer. Consult with `shap` documentation.
-        :param importance_getter: A callable accepting either an estimator or an estimator and `TrialData` instance
-            and returning a numpy array of length equal to the number of features in `TrialData.x_test`.
+        :param shap_approximate: Approximate shap importance values.
+            Caution! some estimators may not support it.
+        :param shap_check_additivity: Passed to the explainer.
+            Consult with `shap` documentation.
+        :param importance_getter: A callable accepting either an estimator or
+            an estimator and `TrialData` instance
+            and returning a numpy array of length equal to the number of
+                features in `TrialData.x_test`.
         :param standardize_imp: Standardize importance values.
-        :param verbose: 0 -- no output; 1 -- progress bar; 2 -- progress bar and info; 3 -- debug mode
+        :param verbose: 0 -- no output; 1 -- progress bar; 2 --
+            progress bar and info; 3 -- debug mode
         """
 
         self.n_iter = n_iter
@@ -96,9 +108,11 @@ class eBoruta(BaseEstimator, TransformerMixin):
             assert 0 < self.percentile <= 100
             assert 0 < self.pvalue < 1
         except AssertionError as e:
-            raise AttributeError(f"Failed to validate the input parameters due to {e}")
+            raise ValidationError(
+                f"Failed to validate the input parameters due to {e}"
+            ) from e
         if self.use_test and self.test_stratify and not self.classification:
-            raise AttributeError(
+            raise ValidationError(
                 f'Using "test_stratify" with regressors is not possible'
             )
 
@@ -108,15 +122,16 @@ class eBoruta(BaseEstimator, TransformerMixin):
         has_predict = hasattr(model, "predict")
 
         if not (has_fit and has_predict):
-            raise AttributeError(
+            raise ValidationError(
                 "Model must contain both the fit() and predict() methods"
             )
 
     @staticmethod
     def _get_importance(model: _E) -> np.ndarray:
         if not hasattr(model, "feature_importances_"):
-            raise AttributeError(
-                'Builtin importance getter failed due to model not having "feature_importances_'
+            raise ValidationError(
+                "Builtin importance getter failed due to model not having "
+                '"feature_importances_'
             )
         values = model.feature_importances_
         if not isinstance(values, np.ndarray):
@@ -145,15 +160,17 @@ class eBoruta(BaseEstimator, TransformerMixin):
                 approximate=self.shap_approximate,
                 check_additivity=self.shap_check_additivity,
             )
-            # values is matrix of the same shape as x in case of single objective,
-            # and a list of such matrices in case of multi-objective classification/regression
-            # importance per objective is a mean of absolute shap values per feature
-            # importance in multiple objectives is a mean of such means
+            # values is matrix of the same shape as x in case of single
+            # objective, and a list of such matrices in case of multi-objective
+            # classification/regression.
+            # importance per objective is a mean of absolute shap values per
+            # feature importance in multiple objectives is a mean of such means
             if isinstance(values, np.ndarray):
                 values = [values]
             importances = np.vstack([np.abs(v).mean(0) for v in values]).mean(0)
             LOGGER.debug(
-                f"Calculated {importances.shape} importances using {explainer_type.__name__} explainer"
+                f"Calculated {importances.shape} importances using "
+                f"{explainer_type.__name__} explainer"
             )
         else:
             if self.importance_getter is None:
@@ -263,9 +280,9 @@ class eBoruta(BaseEstimator, TransformerMixin):
                 last_step = gg.iloc[-1]
                 LOGGER.info(
                     f'Feature {g} was marked at step {last_step["Step"]} and threshold '
-                    f'{round(last_step["Threshold"], 2)} as {last_step["Decision"]}, having '
-                    f'{round(last_step["Importance"], 2)} importance ({imp_desc}) '
-                    f"and total number of hits {total_hits}"
+                    f'{round(last_step["Threshold"], 2)} as {last_step["Decision"]}, '
+                    f'having {round(last_step["Importance"], 2)} importance '
+                    f"({imp_desc}) and total number of hits {total_hits}"
                 )
 
     def _fit(
@@ -340,7 +357,8 @@ class eBoruta(BaseEstimator, TransformerMixin):
                 self.features_.tentative
             ), "size of real_imp == size of initital columns"
             LOGGER.debug(
-                f"Separated into {len(real_imp)} real and {len(shadow_imp)} shadow importance values"
+                f"Separated into {len(real_imp)} real and {len(shadow_imp)} "
+                f"shadow importance values"
             )
 
             threshold = np.percentile(shadow_imp, self.percentile)
@@ -351,7 +369,8 @@ class eBoruta(BaseEstimator, TransformerMixin):
             hits = (real_imp > threshold).astype(np.int)
             hits_total = hits.sum()
             LOGGER.info(
-                f"{round(hits_total / len(hits) * 100, 2)}% ({hits_total}) recorded as hits"
+                f"{round(hits_total / len(hits) * 100, 2)}% ({hits_total}) "
+                "recorded as hits"
             )
             hit_upd = dict(zip(self.features_.tentative, hits))
             imp_upd = dict(zip(self.features_.tentative, real_imp))
@@ -411,8 +430,8 @@ class eBoruta(BaseEstimator, TransformerMixin):
 
         if x.shape[1] != self.dataset_.x.shape[1]:
             raise ValueError(
-                f"Reshape your data: number of input features {x.shape[1]} does not match "
-                f"the one used during fit {self.dataset_.x.shape[1]}"
+                f"Reshape your data: number of input features {x.shape[1]} does not "
+                f"match the one used during fit {self.dataset_.x.shape[1]}"
             )
 
         inp_unique = set(x.columns) - set(self.dataset_.x.columns)
@@ -464,7 +483,8 @@ class eBoruta(BaseEstimator, TransformerMixin):
         if n_last_steps is None:
             n_last_steps = len(features.imp_history)
         LOGGER.info(
-            f'Applying "rough fix" to {num_tentative} tentative features using {n_last_steps} last steps'
+            f'Applying "rough fix" to {num_tentative} tentative features '
+            f"using {n_last_steps} last steps"
         )
         tentative_median = features.imp_history.iloc[:n_last_steps][
             features.tentative
@@ -473,7 +493,8 @@ class eBoruta(BaseEstimator, TransformerMixin):
             "Threshold"
         ].median()
         LOGGER.info(
-            f"Median importance for tentative features throughout history: {tentative_median.values}"
+            "Median importance for tentative features throughout "
+            f"history: {tentative_median.values}"
         )
         LOGGER.info(
             f"Median {self.percentile}-th percentile threshold: {threshold_median}"
