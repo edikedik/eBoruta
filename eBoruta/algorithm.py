@@ -1,8 +1,11 @@
 """
 A module containing eBoruta masterclass encapsulating algorithm's execution.
 """
+from __future__ import annotations
+
 import logging
 import typing as t
+from collections import abc
 from copy import deepcopy
 from inspect import signature
 
@@ -31,18 +34,18 @@ class eBoruta(BaseEstimator, TransformerMixin):
 
     def __init__(
         self,
-        n_iter: int = 20,
+        n_iter: int = 30,
         classification: bool = True,
         percentile: int = 100,
         pvalue: float = 0.05,
-        use_test: bool = True,
-        test_size: t.Union[float, int] = 0.3,
-        test_stratify: t.Optional[bool] = True,
+        use_test: bool = False,
+        test_size: int | float = 0.3,
+        test_stratify: bool = False,
         shap_importance: bool = True,
         shap_use_gpu: bool = False,
-        shap_approximate: bool = True,
+        shap_approximate: bool = False,
         shap_check_additivity: bool = False,
-        importance_getter: t.Optional[ImportanceGetter] = None,
+        importance_getter: ImportanceGetter | None = None,
         standardize_imp: bool = False,
         verbose: int = 1,
     ):
@@ -113,7 +116,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
             ) from e
         if self.use_test and self.test_stratify and not self.classification:
             raise ValidationError(
-                f'Using "test_stratify" with regressors is not possible'
+                'Using "test_stratify" with regressors is not possible'
             )
 
     @staticmethod
@@ -140,15 +143,18 @@ class eBoruta(BaseEstimator, TransformerMixin):
             values = np.mean(values, axis=0)
         return values
 
-    def importance(self, model: _E, trial_data: TrialData, abs_: bool = True):
+    def calculate_importance(
+        self, model: _E, trial_data: TrialData, abs_: bool = True
+    ) -> np.ndarray:
         """
-
         :param model: Estimator with `fit` method. In case of using `shap`
             importance, a tree-based estimator supported by `Tree` explainer
             is expected.
-        :param trial_data:
-        :param abs_:
-        :return:
+        :param trial_data: Datasets generated for the current trial.
+            see :meth:`eBoruta.containers.Dataset.generate_trial_sample`.
+        :param abs_: Take absolute value of the importance array. ``True`` by
+            default since shap contributions may be negative.
+        :return: An array of importance values.
         """
         if self.shap_importance:
             explainer_type = (
@@ -167,32 +173,43 @@ class eBoruta(BaseEstimator, TransformerMixin):
             # feature importance in multiple objectives is a mean of such means
             if isinstance(values, np.ndarray):
                 values = [values]
-            importances = np.vstack([np.abs(v).mean(0) for v in values]).mean(0)
+            importance_a = np.vstack([np.abs(v).mean(0) for v in values]).mean(0)
             LOGGER.debug(
-                f"Calculated {importances.shape} importances using "
+                f"Calculated {importance_a.shape} importance array using "
                 f"{explainer_type.__name__} explainer"
             )
         else:
             if self.importance_getter is None:
-                importances = self._get_importance(self.model_)
+                importance_a = self._get_importance(self.model_)
             else:
                 if "trial_data" in signature(self.importance_getter).parameters:
-                    importances = self.importance_getter(model, trial_data)
+                    importance_a = self.importance_getter(model, trial_data)
                 else:
-                    importances = self.importance_getter(model)
-            LOGGER.debug(f"Got array {importances.shape} of builtin importances")
+                    importance_a = self.importance_getter(model)
+            LOGGER.debug(f"Got array {importance_a.shape} of builtin importance_a")
 
         if self.standardize_imp:
-            importances = (importances - importances.mean()) / importances.std()
+            importance_a = (importance_a - importance_a.mean()) / importance_a.std()
 
         if abs_:
-            importances = np.abs(importances)
+            importance_a = np.abs(importance_a)
 
-        return importances
+        return importance_a
 
-    def _stat_tests(
+    def stat_tests(
         self, features: Features, iter_i: int
     ) -> t.Tuple[np.ndarray, np.ndarray]:
+        # TODO: should I elaborate docs explaining the calculations here?
+        """
+        Test features at current iteration based on importance values.
+
+        :param features: Features state at current iteration.
+        :param iter_i: Iteration starting from 1.
+        :return: Accepted and rejected feature names. Features present in
+            :attr:`eBoruta.containers.Features.names` but not accepted or
+            rejected are considered "tentative".
+        """
+
         def _test_hits(a: np.ndarray, alternative: str) -> np.ndarray:
             p_val = np.array(
                 [binomtest(x, iter_i, alternative=alternative).pvalue for x in a]
@@ -224,7 +241,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         rejected: np.ndarray,
         tentative: np.ndarray,
         pbar: t.Optional[tqdm] = None,
-    ):
+    ) -> tuple[dict[str, int], dict[str, int]]:
         names = features.names[tentative]
         accepted_names = names[accepted]
         rejected_names = names[rejected]
@@ -253,18 +270,34 @@ class eBoruta(BaseEstimator, TransformerMixin):
         for k, v in report_round.items():
             LOGGER.debug(f"{k}: {v}")
 
+        return counts_round, counts_total
+
     def report_features(
-        self, features: t.Optional[Features] = None, full: bool = False
-    ):
+        self, features: Features | None = None, full: bool = False
+    ) -> str:
+        """
+        Create a text report of the optimization progress. It's sane
+        to print it out when debugging and using a few features.
+
+        :param features: Current features.
+        :param full: Create a very lengthy report for each individual feature.
+        :return: Concatenated report messages as a single string.
+        """
+        if features is None:
+            if self.features_ is None:
+                raise ValidationError(
+                    "Features were not provided and missing `features_` attr"
+                )
+            features = self.features_
         counts = {
             "accepted": len(self.features_.accepted),
             "rejected": len(self.features_.rejected),
             "tentative": len(self.features_.tentative),
         }
-        features = self.features_ if features is None else features
         history = features.history.dropna()
         max_steps = history["Step"].max()
-        LOGGER.info(f"Stopped at {max_steps} step. Final results: {counts}")
+        msg = f"Reporting at max step {max_steps}. Feature counts: {counts}"
+        LOGGER.info(msg)
         if full:
             for g, gg in history.groupby("Feature"):
                 total_hits = gg["Hit"].sum()
@@ -278,23 +311,41 @@ class eBoruta(BaseEstimator, TransformerMixin):
                 }
                 imp_desc = {k: round(v, 2) for k, v in imp_desc.items()}
                 last_step = gg.iloc[-1]
-                LOGGER.info(
+                msg_feature = (
                     f'Feature {g} was marked at step {last_step["Step"]} and threshold '
                     f'{round(last_step["Threshold"], 2)} as {last_step["Decision"]}, '
                     f'having {round(last_step["Importance"], 2)} importance '
                     f"({imp_desc}) and total number of hits {total_hits}"
                 )
+                LOGGER.info(msg_feature)
+                msg += f"\n{msg_feature}"
+        return msg
 
-    def _fit(
+    def fit(
         self,
-        x: pd.DataFrame,
+        x: _X,
         y: _Y,
-        sample_weight: t.Optional[np.ndarray] = None,
-        model: t.Any = None,
-        callbacks_trial_start: t.Optional[t.Sequence[Callback]] = None,
-        callbacks_trial_end: t.Optional[t.Sequence[Callback]] = None,
+        sample_weight: np.ndarray | None = None,
+        model: _E | None = None,
+        callbacks_trial_start: abc.Sequence[Callback] | None = None,
+        callbacks_trial_end: abc.Sequence[Callback] | None = None,
         **kwargs,
-    ) -> "eBoruta":
+    ) -> eBoruta:
+        """
+        Train the boruta algorithm.
+
+        :param x: Features collection as a 2D array or a ``pd.DataFrame``.
+        :param y: Response variable(s).
+        :param sample_weight: Optional sample weight for each instance in ``x``
+            for models that support it in ``fit`` method.
+        :param model: An arbitrary model. If ``None``, use
+            :class:`RandomForestClassifier` if :attr:`classification` is
+            ``True``, otherwise use :class:`RandomForestRegressor`.
+        :param callbacks_trial_start: Callbacks to call at each trial's start.
+        :param callbacks_trial_end: Callbacks to call at each trial's end.
+        :param kwargs: Passed to ``model.fit()`` method.
+        :return:
+        """
         self.dataset_ = Dataset(x, y, sample_weight)
         self.features_ = Features(self.dataset_.x.columns.to_numpy())
         if model is None:
@@ -342,7 +393,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
             )
             LOGGER.debug("Fitted the model")
 
-            imp = self.importance(self.model_, trial_data)
+            imp = self.calculate_importance(self.model_, trial_data)
             LOGGER.debug(f"Calculated {len(imp)} importance values")
 
             real_imp, shadow_imp = map(
@@ -355,7 +406,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
             )
             assert len(real_imp) == len(
                 self.features_.tentative
-            ), "size of real_imp == size of initital columns"
+            ), "size of real_imp != size of initial columns"
             LOGGER.debug(
                 f"Separated into {len(real_imp)} real and {len(shadow_imp)} "
                 f"shadow importance values"
@@ -382,7 +433,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
                 [self.features_.hit_history, pd.DataFrame.from_records([hit_upd])]
             )
 
-            accepted, rejected = self._stat_tests(self.features_, trial_n)
+            accepted, rejected = self.stat_tests(self.features_, trial_n)
             initial_tentative = self.features_.tentative_mask
 
             self.features_.accepted_mask[self.features_.tentative_mask] = accepted
@@ -420,11 +471,20 @@ class eBoruta(BaseEstimator, TransformerMixin):
                 break
 
         if self.verbose > 0:
-            self.report_features(full=self.verbose == 2)
+            self.report_features(full=self.verbose >= 2)
 
         return self
 
-    def _transform(self, x: _X, tentative: bool = False) -> pd.DataFrame:
+    def transform(self, x: _X, tentative: bool = False) -> pd.DataFrame:
+        """
+        Transform input data using fitted model. Transformation means selecting
+        accepted features from ``x``. Note that due to inheriting the from the
+        ``TransformerMixin``.
+
+        :param x: Data used to :meth:`fit` the algorithm
+        :param tentative: Also select tentative features.
+        :return: A subset of ``x``.
+        """
         check_is_fitted(self, ["features_", "dataset_", "model_"])
         x = self.dataset_.prepare_x(x)
 
@@ -449,30 +509,42 @@ class eBoruta(BaseEstimator, TransformerMixin):
 
         return x[sel_columns]
 
-    def fit(
-        self,
-        x: _X,
-        y: _Y,
-        sample_weight=None,
-        model: t.Any = None,
-        callbacks_trial_start: t.Optional[t.Sequence[Callback]] = None,
-        callbacks_trial_end: t.Optional[t.Sequence[Callback]] = None,
-        **kwargs,
-    ) -> "eBoruta":
-        return self._fit(
-            x,
-            y,
-            sample_weight=sample_weight,
-            model=model,
-            callbacks_trial_start=callbacks_trial_start,
-            callbacks_trial_end=callbacks_trial_end,
-            **kwargs,
-        )
+    # def fit(
+    #     self,
+    #     x: _X,
+    #     y: _Y,
+    #     sample_weight=None,
+    #     model: t.Any = None,
+    #     callbacks_trial_start: t.Optional[t.Sequence[Callback]] = None,
+    #     callbacks_trial_end: t.Optional[t.Sequence[Callback]] = None,
+    #     **kwargs,
+    # ) -> eBoruta:
+    #     return self._fit(
+    #         x,
+    #         y,
+    #         sample_weight=sample_weight,
+    #         model=model,
+    #         callbacks_trial_start=callbacks_trial_start,
+    #         callbacks_trial_end=callbacks_trial_end,
+    #         **kwargs,
+    #     )
 
-    def transform(self, x: _X, tentative: bool = False) -> pd.DataFrame:
-        return self._transform(x, tentative)
+    # def transform(self, x: _X, tentative: bool = False) -> pd.DataFrame:
+    #     return self._transform(x, tentative)
 
-    def rough_fix(self, n_last_steps: t.Optional[int] = None) -> Features:
+    def rough_fix(self, n_last_trials: int | None = None) -> Features:
+        """
+        Apply "rough fix" strategy to handle remaining tentative features.
+
+        Features having ``median(importance) > median(thresholds)`` where
+        importance and thresholds are history records of tentative features'
+        importance and percentile thresholds used to mark "hits" after each
+        trial.
+
+        :param n_last_trials: Consider only this number of last trials.
+            If ``None``, defaults to all trials.
+        :return: Modified features with resolved tentative ones.
+        """
         if not hasattr(self, "features_"):
             raise ValueError("Applying rough fix with no recorded features")
         num_tentative = len(self.features_.tentative)
@@ -480,16 +552,16 @@ class eBoruta(BaseEstimator, TransformerMixin):
         if not num_tentative:
             LOGGER.info("No tentative features to apply rough fix to")
             return features
-        if n_last_steps is None:
-            n_last_steps = len(features.imp_history)
+        if n_last_trials is None:
+            n_last_trials = len(features.imp_history)
         LOGGER.info(
             f'Applying "rough fix" to {num_tentative} tentative features '
-            f"using {n_last_steps} last steps"
+            f"using {n_last_trials} last steps"
         )
-        tentative_median = features.imp_history.iloc[:n_last_steps][
+        tentative_median = features.imp_history.iloc[:n_last_trials][
             features.tentative
         ].median()
-        threshold_median = features.imp_history.iloc[:n_last_steps][
+        threshold_median = features.imp_history.iloc[:n_last_trials][
             "Threshold"
         ].median()
         LOGGER.info(
