@@ -81,6 +81,9 @@ exclude = ["scripts", "docs", "test", "notebooks"]
 module = "sklearn.*"
 ignore_missing_imports = true
 
+[tool.pylint.main]
+ignore = ["test"]
+
 [tool.pylint.format]
 max-line-length = "88"
 good-names = "i, j, k, x, df, l, m, n, f, fn, e"
@@ -96,5 +99,6 @@ disable = [
     "invalid-name",
     "eval-used",
     "exec-used",
-    "broad-except"
+    "broad-except",
+    "attribute-defined-outside-init"
 ]
