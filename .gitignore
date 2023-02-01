@@ -7,6 +7,8 @@
 docs/_*
 docs/notebooks
 
+test/catboost_info
+
 # User-specific stuff
 .idea/**/workspace.xml
 .idea/**/tasks.xml
