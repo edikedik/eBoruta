@@ -27,6 +27,11 @@ from eBoruta.utils import zip_partition
 LOGGER = logging.getLogger(__name__)
 
 
+# TODO: rank-at-step method -- rank accepted features at step n
+# TODO: rank features method -- rank supplied features
+# TODO: allow restarting from some step (rely on history)
+
+
 class eBoruta(BaseEstimator, TransformerMixin):
     """
     Flexible sklearn-compatible feature selection wrapper method.
@@ -41,8 +46,8 @@ class eBoruta(BaseEstimator, TransformerMixin):
         use_test: bool = False,
         test_size: int | float = 0.3,
         test_stratify: bool = False,
-        shap_importance: bool = True,
-        shap_use_gpu: bool = False,
+        shap_tree: bool = True,
+        shap_gpu_tree: bool = False,
         shap_approximate: bool = False,
         shap_check_additivity: bool = False,
         importance_getter: ImportanceGetter | None = None,
@@ -63,17 +68,15 @@ class eBoruta(BaseEstimator, TransformerMixin):
             Can be a number or a fraction.
         :param test_stratify: Stratify the test examples based on the `y` class
             values to balance the split.
-        :param shap_importance: Use importance values based on `shap` package,
-            specifically the `Tree` explainer.
-        :param shap_use_gpu: Use `GPUTree` explainer.
+        :param shap_tree: Use :class:`shap.Tree` explainer.
+        :param shap_gpu_tree: Use :class:`shap.GPUTree` explainer.
         :param shap_approximate: Approximate shap importance values.
-            Caution! some estimators may not support it.
+            Caution! some estimators may not support it (e.g., CatBoost).
         :param shap_check_additivity: Passed to the explainer.
             Consult with `shap` documentation.
         :param importance_getter: A callable accepting either an estimator or
-            an estimator and `TrialData` instance
-            and returning a numpy array of length equal to the number of
-                features in `TrialData.x_test`.
+            an estimator and `TrialData` instance and returning a numpy array
+            of length equal to the number of features in `TrialData.x_test`.
         :param standardize_imp: Standardize importance values.
         :param verbose: 0 -- no output; 1 -- progress bar; 2 --
             progress bar and info; 3 -- debug mode
@@ -87,8 +90,8 @@ class eBoruta(BaseEstimator, TransformerMixin):
         self.use_test = use_test
         self.test_size = test_size
         self.standardize_imp = standardize_imp
-        self.shap_importance = shap_importance
-        self.shap_use_gpu = shap_use_gpu
+        self.shap_tree = shap_tree
+        self.shap_gpu_tree = shap_gpu_tree
         self.shap_approximate = shap_approximate
         self.shap_check_additivity = shap_check_additivity
         self.importance_getter = importance_getter
@@ -156,9 +159,9 @@ class eBoruta(BaseEstimator, TransformerMixin):
             default since shap contributions may be negative.
         :return: An array of importance values.
         """
-        if self.shap_importance:
+        if self.shap_tree or self.shap_gpu_tree:
             explainer_type = (
-                shap.explainers.GPUTree if self.shap_use_gpu else shap.explainers.Tree
+                shap.GPUTreeExplainer if self.shap_gpu_tree else shap.TreeExplainer
             )
             explainer = explainer_type(model)
             values = explainer.shap_values(
@@ -198,7 +201,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
 
     def stat_tests(
         self, features: Features, iter_i: int
-    ) -> t.Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         # TODO: should I elaborate docs explaining the calculations here?
         """
         Test features at current iteration based on importance values.
@@ -225,7 +228,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         return accepted, rejected
 
     def _call_callbacks(
-        self, trial_data: TrialData, callbacks: t.Sequence[Callback], **kwargs
+        self, trial_data: TrialData, callbacks: abc.Sequence[Callback], **kwargs
     ) -> CallbackReturn:
         for c in callbacks:
             LOGGER.debug(f"Running callback {c}")
@@ -240,7 +243,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         accepted: np.ndarray,
         rejected: np.ndarray,
         tentative: np.ndarray,
-        pbar: t.Optional[tqdm] = None,
+        pbar: tqdm | None = None,
     ) -> tuple[dict[str, int], dict[str, int]]:
         names = features.names[tentative]
         accepted_names = names[accepted]
@@ -509,29 +512,6 @@ class eBoruta(BaseEstimator, TransformerMixin):
 
         return x[sel_columns]
 
-    # def fit(
-    #     self,
-    #     x: _X,
-    #     y: _Y,
-    #     sample_weight=None,
-    #     model: t.Any = None,
-    #     callbacks_trial_start: t.Optional[t.Sequence[Callback]] = None,
-    #     callbacks_trial_end: t.Optional[t.Sequence[Callback]] = None,
-    #     **kwargs,
-    # ) -> eBoruta:
-    #     return self._fit(
-    #         x,
-    #         y,
-    #         sample_weight=sample_weight,
-    #         model=model,
-    #         callbacks_trial_start=callbacks_trial_start,
-    #         callbacks_trial_end=callbacks_trial_end,
-    #         **kwargs,
-    #     )
-
-    # def transform(self, x: _X, tentative: bool = False) -> pd.DataFrame:
-    #     return self._transform(x, tentative)
-
     def rough_fix(self, n_last_trials: int | None = None) -> Features:
         """
         Apply "rough fix" strategy to handle remaining tentative features.
@@ -582,6 +562,9 @@ class eBoruta(BaseEstimator, TransformerMixin):
         features.rejected_mask[features.tentative_mask] = rejected
         features.tentative_mask[features.tentative_mask] = False
         return features
+
+    def rank(self, features: list[str] | None, step: int | None) -> pd.DataFrame:
+        raise NotImplementedError
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 import typing as t
-from collections import Counter
+from collections import abc, Counter
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -175,9 +175,12 @@ class Dataset(t.Generic[_X, _Y]):
 
 @dataclass
 class Features:
+    # TODO: consider adding slicing on steps and selecting columns pandas-like
     """
     A dynamic container representing a set of features used by Boruta
     throughout the run.
+
+    It's created internally and maintained by :class:`eBoruta.algorithm.eBoruta`.
     """
 
     #: An array of feature names.
@@ -199,6 +202,37 @@ class Features:
         self.hit_history = pd.DataFrame(columns=self.names)
         self.imp_history = pd.DataFrame(columns=self.names)
         self.dec_history = pd.DataFrame(columns=self.names)
+
+    def __getitem__(self, item: t.Any) -> t.Self:
+        def get_selectors() -> tuple[int | slice, list]:
+            match item:
+                case [int() | slice(), abc.Sequence()]:
+                    if len(item) != 2:
+                        raise IndexError('Too many indexing items')
+                    return item
+                case slice():
+                    return item, list(self.names)
+                case list():
+                    return slice(1, len(self.names)), item
+                case _:
+                    raise IndexError('Unsupported idx type')
+
+        steps, cols = get_selectors()
+        if isinstance(steps, int):
+            steps = [steps]
+
+        new = Features(np.intersect1d(self.names, cols))
+
+        new.hit_history = self.hit_history.iloc[steps][cols].copy()
+        new.imp_history = self.imp_history.iloc[steps][cols].copy()
+        new.dec_history = self.dec_history.iloc[steps][cols].copy()
+
+        decisions = new.dec_history.iloc[-1]
+        new.accepted_mask = decisions == 1
+        new.rejected_mask = decisions == -1
+        new.tentative_mask = decisions == 0
+
+        return new
 
     @property
     def accepted(self) -> np.ndarray:

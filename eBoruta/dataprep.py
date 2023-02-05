@@ -133,8 +133,8 @@ def has_missing(a: t.Any) -> bool:
         LOGGER.warning(f"Unsupported input array type {type(a)}")
         return False
     except Exception as e:
-        LOGGER.exception(e)
         LOGGER.warning(f"Failed to check input for missing values due to {e}")
+        LOGGER.exception(e)
         return False
 
 

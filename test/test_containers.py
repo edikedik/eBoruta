@@ -3,8 +3,9 @@ import pandas as pd
 import pytest
 from sklearn.datasets import make_classification, make_regression
 
-from eBoruta import Dataset
+from eBoruta import Dataset, eBoruta
 from eBoruta.base import ValidationError
+from eBoruta.utils import sample_dataset
 
 
 @pytest.mark.parametrize('inputs', [
@@ -59,3 +60,19 @@ def test_dataset(inputs):
     w[0] = np.nan
     with pytest.raises(ValidationError):
         verify_w(Dataset(x, y, w))
+
+
+def test_features():
+    x, y = sample_dataset()
+    boruta = eBoruta(verbose=0)
+    boruta.fit(x, y)
+    features = boruta.features_
+
+    # test slicing
+    features_last_10_steps = features[-10:]
+    assert features_last_10_steps.hit_history.shape[0] == 10
+    features_x1x2 = features[['X_1', 'X_2']]
+    assert len(features_x1x2.names) == 2
+    features_last_10_steps_x1x2 = features[-10:, ['X_1', 'X_2']]
+    assert features_last_10_steps_x1x2.hit_history.shape[0] == 10
+    assert len(features_last_10_steps_x1x2.names) == 2
