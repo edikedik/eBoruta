@@ -5,7 +5,6 @@
 .idea/*
 
 docs/_*
-docs/notebooks
 
 test/catboost_info
 
