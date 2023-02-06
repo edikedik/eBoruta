@@ -567,6 +567,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         self,
         features: abc.Sequence[str] | np.ndarray | None = None,
         step: int | None = None,
+        fit: bool = True,
     ) -> pd.DataFrame:
         """
         Rank (sort) features by feature importance values.
@@ -577,6 +578,11 @@ class eBoruta(BaseEstimator, TransformerMixin):
         :param step: A step (trial) number. If provided, will the method will
             select accepted features at this trial. If `features` were provided,
             will intersect with this list.
+        :param fit: Fit the model before calculating importance. In most cases,
+            this should be ``True``, since otherwise the features used to fit
+            the :attr:`model_` would be different from the features being
+            ranked (for which the :attr:`model_` will be queried in order to
+            calculate the importance values).
         :return: A DataFrame with `Feature` and `Importance` column sorted by
             the latter in descending order.
         """
@@ -610,9 +616,12 @@ class eBoruta(BaseEstimator, TransformerMixin):
             return pd.DataFrame(columns=["Feature", "Importance"])
 
         x = self.dataset_.x[features]
+        y = self.dataset_.y
         fs = fs[features]
 
-        trial_data = TrialData(x, x, self.dataset_.y, self.dataset_.y)
+        trial_data = TrialData(x, x, y, y)
+        if fit:
+            self.model_.fit(x, y, sample_weight=self.dataset_.w)
         imp = self.calculate_importance(self.model_, trial_data)
         return pd.DataFrame({"Feature": fs.names, "Importance": imp}).sort_values(
             "Importance", ascending=False
