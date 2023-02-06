@@ -203,6 +203,9 @@ class Features:
         self.imp_history = pd.DataFrame(columns=self.names)
         self.dec_history = pd.DataFrame(columns=self.names)
 
+    def __len__(self) -> int:
+        return len(self.hit_history)
+
     def __getitem__(self, item: t.Any) -> t.Self:
         def get_selectors() -> tuple[int | slice, list]:
             match item:
@@ -235,6 +238,13 @@ class Features:
         return new
 
     @property
+    def shape(self) -> tuple[int, int]:
+        """
+        :return: (# steps, # features)
+        """
+        return len(self), len(self.names)
+
+    @property
     def accepted(self) -> np.ndarray:
         """
         return: An array of feature names marked as accepted.
@@ -264,6 +274,14 @@ class Features:
         if self._history is None:
             self._history = self.compose_history()
         return self._history
+
+    def accepted_at_step(self, step: int) -> np.ndarray:
+        """
+        :param step: Step (trial) number.
+        :return: Feature names accepted at `step`.
+        """
+        df = self.history
+        return df[(df.Step == step) & (df.Decision == 'Accepted')]['Feature'].values
 
     def compose_history(self) -> pd.DataFrame:
         """

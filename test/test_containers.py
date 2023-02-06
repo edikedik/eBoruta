@@ -70,9 +70,11 @@ def test_features():
 
     # test slicing
     features_last_10_steps = features[-10:]
-    assert features_last_10_steps.hit_history.shape[0] == 10
+    assert len(features_last_10_steps) == 10
+    features_first_10_steps = features[:10]
+    assert len(features_first_10_steps) == 10
     features_x1x2 = features[['X_1', 'X_2']]
     assert len(features_x1x2.names) == 2
     features_last_10_steps_x1x2 = features[-10:, ['X_1', 'X_2']]
-    assert features_last_10_steps_x1x2.hit_history.shape[0] == 10
+    assert len(features_last_10_steps_x1x2.hit_history) == 10
     assert len(features_last_10_steps_x1x2.names) == 2

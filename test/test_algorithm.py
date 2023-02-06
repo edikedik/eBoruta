@@ -12,6 +12,7 @@ from sklearn.linear_model import RidgeClassifier, LogisticRegression
 from xgboost import XGBClassifier, XGBRegressor
 
 from eBoruta import eBoruta
+from eBoruta.utils import sample_dataset
 
 
 def get_tree_models():
@@ -73,3 +74,30 @@ def test_models(
     exp_tentative = x.shape[1] - len(features.accepted) - len(features.rejected)
     assert exp_tentative == len(features.tentative)
     assert len(features.accepted) > 0
+
+
+def test_rank():
+    x, y = sample_dataset()
+    boruta = eBoruta()
+    boruta.fit(x, y)
+    hist = boruta.features_.history
+
+    ranks = boruta.rank()
+    assert len(ranks) == len(boruta.features_)
+
+    if len(boruta.features_) == 0:
+        return
+
+    step_fst_accepted = (
+        hist[hist.Decision == "Accepted"].sort_values("Step").iloc[0].Step
+    )
+    accepted_at_fst = list(hist[
+        (hist.Decision == "Accepted") & (hist.Step == step_fst_accepted)
+    ].Feature.unique())
+    ranks1 = boruta.rank(accepted_at_fst)
+    ranks2 = boruta.rank(step=step_fst_accepted)
+    ranks3 = boruta.rank(accepted_at_fst, step_fst_accepted)
+    assert len(ranks1) == len(ranks2) == len(ranks3) == len(accepted_at_fst)
+    assert set(ranks1.Feature) == set(ranks2.Feature)
+    assert set(ranks1.Feature) == set(ranks3.Feature)
+    assert set(ranks2.Feature) == set(ranks3.Feature)

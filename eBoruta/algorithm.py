@@ -563,8 +563,60 @@ class eBoruta(BaseEstimator, TransformerMixin):
         features.tentative_mask[features.tentative_mask] = False
         return features
 
-    def rank(self, features: list[str] | None, step: int | None) -> pd.DataFrame:
-        raise NotImplementedError
+    def rank(
+        self,
+        features: abc.Sequence[str] | np.ndarray | None = None,
+        step: int | None = None,
+    ) -> pd.DataFrame:
+        """
+        Rank (sort) features by feature importance values.
+        Uses :meth:`calculate_importance` to obtain importance of selected
+        features. This may result in running
+
+        :param features: A sequence of features to select.
+        :param step: A step (trial) number. If provided, will the method will
+            select accepted features at this trial. If `features` were provided,
+            will intersect with this list.
+        :return: A DataFrame with `Feature` and `Importance` column sorted by
+            the latter in descending order.
+        """
+
+        if len(self.features_) == 0:
+            raise ValidationError("No steps accumulated yet")
+        # if not check_is_fitted(self.model_):
+        #     raise ValidationError("Model must be fitted first")
+        if self.dataset_ is None:
+            raise ValidationError("Missing dataset")
+
+        if step is None:
+            fs = self.features_
+            accepted = list(fs.names)
+        else:
+            if step < 1:
+                raise ValidationError(f"Negative step {step}")
+            if step >= len(self.features_):
+                LOGGER.warning(
+                    f"Step {step} exceeds max iteration {len(self.features_)}"
+                )
+            accepted = list(self.features_.accepted_at_step(step))
+            fs = self.features_[:step]
+
+        if features is not None:
+            features = list(np.intersect1d(accepted, features))
+        else:
+            features = accepted
+
+        if not features:
+            return pd.DataFrame(columns=["Feature", "Importance"])
+
+        x = self.dataset_.x[features]
+        fs = fs[features]
+
+        trial_data = TrialData(x, x, self.dataset_.y, self.dataset_.y)
+        imp = self.calculate_importance(self.model_, trial_data)
+        return pd.DataFrame({"Feature": fs.names, "Importance": imp}).sort_values(
+            "Importance", ascending=False
+        )
 
 
 if __name__ == "__main__":
