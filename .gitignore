@@ -6,6 +6,8 @@
 
 docs/_*
 
+todo.md
+
 test/catboost_info
 
 # User-specific stuff
