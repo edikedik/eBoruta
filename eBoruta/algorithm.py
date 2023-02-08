@@ -27,8 +27,6 @@ from eBoruta.utils import zip_partition
 LOGGER = logging.getLogger(__name__)
 
 
-# TODO: rank-at-step method -- rank accepted features at step n
-# TODO: rank features method -- rank supplied features
 # TODO: allow restarting from some step (rely on history)
 
 
@@ -159,37 +157,37 @@ class eBoruta(BaseEstimator, TransformerMixin):
             default since shap contributions may be negative.
         :return: An array of importance values.
         """
-        if self.shap_tree or self.shap_gpu_tree:
-            explainer_type = (
-                shap.GPUTreeExplainer if self.shap_gpu_tree else shap.TreeExplainer
-            )
-            explainer = explainer_type(model)
-            values = explainer.shap_values(
-                trial_data.x_test,
-                approximate=self.shap_approximate,
-                check_additivity=self.shap_check_additivity,
-            )
-            # values is matrix of the same shape as x in case of single
-            # objective, and a list of such matrices in case of multi-objective
-            # classification/regression.
-            # importance per objective is a mean of absolute shap values per
-            # feature importance in multiple objectives is a mean of such means
-            if isinstance(values, np.ndarray):
-                values = [values]
-            importance_a = np.vstack([np.abs(v).mean(0) for v in values]).mean(0)
-            LOGGER.debug(
-                f"Calculated {importance_a.shape} importance array using "
-                f"{explainer_type.__name__} explainer"
-            )
-        else:
-            if self.importance_getter is None:
-                importance_a = self._get_importance(self.model_)
+        if self.importance_getter is not None:
+            if "trial_data" in signature(self.importance_getter).parameters:
+                importance_a = self.importance_getter(model, trial_data)
             else:
-                if "trial_data" in signature(self.importance_getter).parameters:
-                    importance_a = self.importance_getter(model, trial_data)
-                else:
-                    importance_a = self.importance_getter(model)
+                importance_a = self.importance_getter(model)
             LOGGER.debug(f"Got array {importance_a.shape} of builtin importance_a")
+        else:
+            if self.shap_tree or self.shap_gpu_tree:
+                explainer_type = (
+                    shap.GPUTreeExplainer if self.shap_gpu_tree else shap.TreeExplainer
+                )
+                explainer = explainer_type(model)
+                values = explainer.shap_values(
+                    trial_data.x_test,
+                    approximate=self.shap_approximate,
+                    check_additivity=self.shap_check_additivity,
+                )
+                # values is matrix of the same shape as x in case of single
+                # objective, and a list of such matrices in case of multi-objective
+                # classification/regression.
+                # importance per objective is a mean of absolute shap values per
+                # feature importance in multiple objectives is a mean of such means
+                if isinstance(values, np.ndarray):
+                    values = [values]
+                importance_a = np.vstack([np.abs(v).mean(0) for v in values]).mean(0)
+                LOGGER.debug(
+                    f"Calculated {importance_a.shape} importance array using "
+                    f"{explainer_type.__name__} explainer"
+                )
+            else:
+                importance_a = self._get_importance(self.model_)
 
         if self.standardize_imp:
             importance_a = (importance_a - importance_a.mean()) / importance_a.std()
