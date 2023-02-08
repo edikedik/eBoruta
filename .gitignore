@@ -8,7 +8,7 @@ docs/_*
 
 todo.md
 
-test/catboost_info
+catboost_info
 
 # User-specific stuff
 .idea/**/workspace.xml
