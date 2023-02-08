@@ -4,7 +4,6 @@ A module containing eBoruta masterclass encapsulating algorithm's execution.
 from __future__ import annotations
 
 import logging
-import typing as t
 from collections import abc
 from copy import deepcopy
 from inspect import signature
@@ -27,9 +26,6 @@ from eBoruta.utils import zip_partition
 LOGGER = logging.getLogger(__name__)
 
 
-# TODO: allow restarting from some step (rely on history)
-
-
 class eBoruta(BaseEstimator, TransformerMixin):
     """
     Flexible sklearn-compatible feature selection wrapper method.
@@ -49,7 +45,6 @@ class eBoruta(BaseEstimator, TransformerMixin):
         shap_approximate: bool = False,
         shap_check_additivity: bool = False,
         importance_getter: ImportanceGetter | None = None,
-        standardize_imp: bool = False,
         verbose: int = 1,
     ):
         """
@@ -75,7 +70,6 @@ class eBoruta(BaseEstimator, TransformerMixin):
         :param importance_getter: A callable accepting either an estimator or
             an estimator and `TrialData` instance and returning a numpy array
             of length equal to the number of features in `TrialData.x_test`.
-        :param standardize_imp: Standardize importance values.
         :param verbose: 0 -- no output; 1 -- progress bar; 2 --
             progress bar and info; 3 -- debug mode
         """
@@ -87,7 +81,6 @@ class eBoruta(BaseEstimator, TransformerMixin):
         self.test_stratify = test_stratify
         self.use_test = use_test
         self.test_size = test_size
-        self.standardize_imp = standardize_imp
         self.shap_tree = shap_tree
         self.shap_gpu_tree = shap_gpu_tree
         self.shap_approximate = shap_approximate
@@ -188,9 +181,6 @@ class eBoruta(BaseEstimator, TransformerMixin):
                 )
             else:
                 importance_a = self._get_importance(self.model_)
-
-        if self.standardize_imp:
-            importance_a = (importance_a - importance_a.mean()) / importance_a.std()
 
         if abs_:
             importance_a = np.abs(importance_a)
