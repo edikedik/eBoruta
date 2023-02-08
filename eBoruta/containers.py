@@ -227,7 +227,7 @@ class Features:
         new = Features(np.intersect1d(self.names, cols))
 
         new.hit_history = self.hit_history.iloc[steps][cols].copy()
-        new.imp_history = self.imp_history.iloc[steps][cols].copy()
+        new.imp_history = self.imp_history.iloc[steps][cols + ['Threshold']].copy()
         new.dec_history = self.dec_history.iloc[steps][cols].copy()
 
         decisions = new.dec_history.iloc[-1]
