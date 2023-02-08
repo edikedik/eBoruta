@@ -15,7 +15,7 @@ from eBoruta.__about__ import __version__
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "eBoruta"
-copyright = "2022, iReveguk"
+copyright = "2023, iReveguk"
 author = "iReveguk"
 release = __version__
 
