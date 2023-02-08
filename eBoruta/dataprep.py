@@ -71,13 +71,14 @@ def prepare_y(y: t.Any) -> np.ndarray:
     :return: an array containing target variable.
     """
     if isinstance(y, (pd.DataFrame, pd.Series)):
-        y = np.squeeze(y.values)  # type: ignore  # ignore type-arg
+        y = y.values
     elif isinstance(y, np.ndarray):
         pass
     else:
         LOGGER.debug("Trying to convert y into an array")
         y = convert_to_array(y)
     assert isinstance(y, np.ndarray), "Failed converting to np array"
+    y = np.squeeze(y)  # type: ignore  # ignore type-arg
     _check_array(y, ensure_2d=False, force_all_finite=True, ensure_min_features=True)
     return y
 
@@ -91,15 +92,14 @@ def prepare_w(w: t.Any) -> np.ndarray | None:
     """
     if w is None:
         return None
-    if isinstance(w, pd.DataFrame):
-        w = np.squeeze(w.values)
-    if isinstance(w, pd.Series):
+    if isinstance(w, (pd.DataFrame, pd.Series)):
         w = w.values
     elif isinstance(w, np.ndarray):
         pass
     else:
         LOGGER.debug("Trying to convert w into an array")
         w = convert_to_array(w)
+    w = np.squeeze(w)
     assert isinstance(w, np.ndarray), "Failed converting to np array"
     _check_array(w, ensure_2d=False, force_all_finite=True, ensure_min_features=True)
     if len(w.shape) != 1:
@@ -123,12 +123,10 @@ def has_missing(a: t.Any) -> bool:
         if isinstance(a, pd.Series):
             return a.isna().any()
         if isinstance(a, np.ndarray):
-            res = np.isnan(a).any()
-            assert isinstance(res, bool)
+            res = np.any(np.isnan(a).flatten())
             return res
         if isinstance(a, abc.Sequence):
             res = np.isnan(np.array(a)).any()
-            assert isinstance(res, bool)
             return res
         LOGGER.warning(f"Unsupported input array type {type(a)}")
         return False
