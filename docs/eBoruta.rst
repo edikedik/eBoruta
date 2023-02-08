@@ -4,6 +4,14 @@ eBoruta package
 Submodules
 ----------
 
+eBoruta.algorithm module
+------------------------
+
+.. automodule:: eBoruta.algorithm
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 eBoruta.base module
 -------------------
 
@@ -24,14 +32,6 @@ eBoruta.containers module
 -------------------------
 
 .. automodule:: eBoruta.containers
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-eBoruta.eBoruta module
-----------------------
-
-.. automodule:: eBoruta.eBoruta
    :members:
    :undoc-members:
    :show-inheritance:
