@@ -5,4 +5,4 @@ Notebooks
    :maxdepth: 3
 
    Demo <notebooks/demo>
-   Protein kinases' family sequence determinants example <notebooks/sequence_determinants_tutorial>
+   Protein kinases' family sequence determinants tutorial <notebooks/sequence_determinants_tutorial>
