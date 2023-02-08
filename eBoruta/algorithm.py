@@ -37,8 +37,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         classification: bool = True,
         percentile: int = 100,
         pvalue: float = 0.05,
-        use_test: bool = False,
-        test_size: int | float = 0.3,
+        test_size: int | float = 0,
         test_stratify: bool = False,
         shap_tree: bool = True,
         shap_gpu_tree: bool = False,
@@ -55,9 +54,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
             to `max` in original Boruta.
         :param pvalue: Level of rejecting the null hypothesis
             (the absence of a feature's importance).
-        :param use_test: Use test set instead of the full training set
-            to compute feature importances.
-        :param test_size: The `test_size` param passed to `train_test_split`.
+        :param test_size: The `test_size` param passed to :func:`train_test_split`.
             Can be a number or a fraction.
         :param test_stratify: Stratify the test examples based on the `y` class
             values to balance the split.
@@ -79,7 +76,6 @@ class eBoruta(BaseEstimator, TransformerMixin):
         self.pvalue = pvalue
         self.classification = classification
         self.test_stratify = test_stratify
-        self.use_test = use_test
         self.test_size = test_size
         self.shap_tree = shap_tree
         self.shap_gpu_tree = shap_gpu_tree
@@ -108,7 +104,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
             raise ValidationError(
                 f"Failed to validate the input parameters due to {e}"
             ) from e
-        if self.use_test and self.test_stratify and not self.classification:
+        if self.test_size > 0 and self.test_stratify and not self.classification:
             raise ValidationError(
                 'Using "test_stratify" with regressors is not possible'
             )
@@ -354,7 +350,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
             iters = tqdm(iters, desc="Boruta trials")
 
         generator_kwargs = {}
-        if self.use_test:
+        if self.test_size > 0:
             generator_kwargs["test_size"] = self.test_size
             # TODO: test how it works in case of multiple objectives
             generator_kwargs["stratify"] = self.dataset_.y.copy()
