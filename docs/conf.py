@@ -28,13 +28,14 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.viewcode",
+    "sphinxcontrib.bibtex",
     # 'sphinx.ext.napoleon',
     "nbsphinx",
 ]
 
-# bibtex_bibfiles = ["ref.bib"]
-# bibtex_default_style = "unsrt"
-# bibtex_reference_style = "author_year"
+bibtex_bibfiles = ["ref.bib"]
+bibtex_default_style = "unsrt"
+bibtex_reference_style = "author_year"
 
 # To include __init__ docs
 autoclass_content = "class"
