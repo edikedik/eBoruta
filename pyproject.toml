@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "eBoruta"
 description = 'Extended Boruta -- a flexible transparent sklearn-compatible python Boruta implementation'
-readme = "README.rst"
+readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 keywords = []
