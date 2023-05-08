@@ -552,11 +552,14 @@ class eBoruta(BaseEstimator, TransformerMixin):
         features: abc.Sequence[str] | np.ndarray | None = None,
         step: int | None = None,
         fit: bool = True,
+        gen_sample: bool = False,
+        sort: bool = False,
     ) -> pd.DataFrame:
         """
         Rank (sort) features by feature importance values.
+
         Uses :meth:`calculate_importance` to obtain importance of selected
-        features. This may result in running
+        features and :attr:`dataset_` to obtain the data.
 
         :param features: A sequence of features to select.
         :param step: A step (trial) number. If provided, will the method will
@@ -567,49 +570,53 @@ class eBoruta(BaseEstimator, TransformerMixin):
             the :attr:`model_` would be different from the features being
             ranked (for which the :attr:`model_` will be queried in order to
             calculate the importance values).
-        :return: A DataFrame with `Feature` and `Importance` column sorted by
-            the latter in descending order.
+        :param gen_sample: Generate trial sample from the :attr:`dataset_` using
+            :attr:`test_size` and :attr:`stratify` values provided during init.
+        :param sort: Sort results by importance values in descending order.
+        :return: A DataFrame with `Feature` and `Importance` columns.
         """
 
         if len(self.features_) == 0:
             raise ValidationError("No steps accumulated yet")
-        # if not check_is_fitted(self.model_):
-        #     raise ValidationError("Model must be fitted first")
+
         if self.dataset_ is None:
             raise ValidationError("Missing dataset")
 
-        if step is None:
-            fs = self.features_
-            accepted = list(fs.names)
-        else:
-            if step < 1:
-                raise ValidationError(f"Negative step {step}")
-            if step >= len(self.features_):
-                LOGGER.warning(
-                    f"Step {step} exceeds max iteration {len(self.features_)}"
-                )
-            accepted = list(self.features_.accepted_at_step(step))
-            fs = self.features_[:step]
-
-        if features is not None:
-            features = list(np.intersect1d(accepted, features))
-        else:
-            features = accepted
+        if features is None:
+            if step is None:
+                features = list(self.features_.names)
+            else:
+                if step < 1:
+                    raise ValidationError(f"Negative step {step}")
+                if step >= len(self.features_):
+                    LOGGER.warning(
+                        f"Step {step} exceeds max iteration {len(self.features_)}"
+                    )
+                features = list(self.features_.accepted_at_step(step))
 
         if not features:
             return pd.DataFrame(columns=["Feature", "Importance"])
 
-        x = self.dataset_.x[features]
-        y = self.dataset_.y
-        fs = fs[features]
+        if gen_sample:
+            generator_kwargs = {}
+            if self.test_size > 0:
+                generator_kwargs["test_size"] = self.test_size
+            trial_data = self.dataset_.generate_trial_sample(features)
+        else:
+            x = self.dataset_.x[features]
+            y = self.dataset_.y
+            trial_data = TrialData(x, x, y, y)
 
-        trial_data = TrialData(x, x, y, y)
         if fit:
-            self.model_.fit(x, y, sample_weight=self.dataset_.w)
+            self.model_.fit(
+                trial_data.x_train, trial_data.y_train, sample_weight=trial_data.w_train
+            )
         imp = self.calculate_importance(self.model_, trial_data)
-        return pd.DataFrame({"Feature": fs.names, "Importance": imp}).sort_values(
-            "Importance", ascending=False
-        )
+
+        df = pd.DataFrame({"Feature": trial_data.x_test.columns, "Importance": imp})
+        if sort:
+            return df.sort_values("Importance", ascending=False)
+        return df
 
 
 if __name__ == "__main__":
