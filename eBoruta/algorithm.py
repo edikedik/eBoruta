@@ -32,19 +32,19 @@ class eBoruta(BaseEstimator, TransformerMixin):
     """
 
     def __init__(
-        self,
-        n_iter: int = 30,
-        classification: bool = True,
-        percentile: int = 100,
-        pvalue: float = 0.05,
-        test_size: int | float = 0,
-        test_stratify: bool = False,
-        shap_tree: bool = True,
-        shap_gpu_tree: bool = False,
-        shap_approximate: bool = False,
-        shap_check_additivity: bool = False,
-        importance_getter: ImportanceGetter | None = None,
-        verbose: int = 1,
+            self,
+            n_iter: int = 30,
+            classification: bool = True,
+            percentile: int = 100,
+            pvalue: float = 0.05,
+            test_size: int | float = 0,
+            test_stratify: bool = False,
+            shap_tree: bool = True,
+            shap_gpu_tree: bool = False,
+            shap_approximate: bool = False,
+            shap_check_additivity: bool = False,
+            importance_getter: ImportanceGetter | None = None,
+            verbose: int = 1,
     ):
         """
         :param n_iter: The number of trials to run the algorithm.
@@ -134,7 +134,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         return values
 
     def calculate_importance(
-        self, model: _E, trial_data: TrialData, abs_: bool = True
+            self, model: _E, trial_data: TrialData, abs_: bool = True
     ) -> np.ndarray:
         """
         :param model: Estimator with `fit` method. In case of using `shap`
@@ -184,7 +184,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         return importance_a
 
     def stat_tests(
-        self, features: Features, iter_i: int
+            self, features: Features, iter_i: int
     ) -> tuple[np.ndarray, np.ndarray]:
         # TODO: should I elaborate docs explaining the calculations here?
         """
@@ -212,7 +212,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         return accepted, rejected
 
     def _call_callbacks(
-        self, trial_data: TrialData, callbacks: abc.Sequence[Callback], **kwargs
+            self, trial_data: TrialData, callbacks: abc.Sequence[Callback], **kwargs
     ) -> CallbackReturn:
         for c in callbacks:
             LOGGER.debug(f"Running callback {c}")
@@ -223,11 +223,11 @@ class eBoruta(BaseEstimator, TransformerMixin):
 
     @staticmethod
     def _report_trial(
-        features: Features,
-        accepted: np.ndarray,
-        rejected: np.ndarray,
-        tentative: np.ndarray,
-        pbar: tqdm | None = None,
+            features: Features,
+            accepted: np.ndarray,
+            rejected: np.ndarray,
+            tentative: np.ndarray,
+            pbar: tqdm | None = None,
     ) -> tuple[dict[str, int], dict[str, int]]:
         names = features.names[tentative]
         accepted_names = names[accepted]
@@ -260,7 +260,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         return counts_round, counts_total
 
     def report_features(
-        self, features: Features | None = None, full: bool = False
+            self, features: Features | None = None, full: bool = False
     ) -> str:
         """
         Create a text report of the optimization progress. It's sane
@@ -309,14 +309,14 @@ class eBoruta(BaseEstimator, TransformerMixin):
         return msg
 
     def fit(
-        self,
-        x: _X,
-        y: _Y,
-        sample_weight: np.ndarray | None = None,
-        model: _E | None = None,
-        callbacks_trial_start: abc.Sequence[Callback] | None = None,
-        callbacks_trial_end: abc.Sequence[Callback] | None = None,
-        **kwargs,
+            self,
+            x: _X,
+            y: _Y,
+            sample_weight: np.ndarray | None = None,
+            model: _E | None = None,
+            callbacks_trial_start: abc.Sequence[Callback] | None = None,
+            callbacks_trial_end: abc.Sequence[Callback] | None = None,
+            **kwargs,
     ) -> eBoruta:
         """
         Train the boruta algorithm.
@@ -426,7 +426,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
             self.features_.accepted_mask[self.features_.tentative_mask] = accepted
             self.features_.rejected_mask[self.features_.tentative_mask] = rejected
             self.features_.tentative_mask = (
-                ~self.features_.accepted_mask & ~self.features_.rejected_mask
+                    ~self.features_.accepted_mask & ~self.features_.rejected_mask
             )
             decisions = np.zeros(len(self.features_.names), dtype=int)
             decisions[self.features_.accepted_mask] = 1
@@ -548,12 +548,13 @@ class eBoruta(BaseEstimator, TransformerMixin):
         return features
 
     def rank(
-        self,
-        features: abc.Sequence[str] | np.ndarray | None = None,
-        step: int | None = None,
-        fit: bool = True,
-        gen_sample: bool = False,
-        sort: bool = False,
+            self,
+            features: abc.Sequence[str] | np.ndarray | None = None,
+            step: int | None = None,
+            fit: bool = True,
+            model: _E | None = None,
+            gen_sample: bool = False,
+            sort: bool = False,
     ) -> pd.DataFrame:
         """
         Rank (sort) features by feature importance values.
@@ -570,6 +571,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
             the :attr:`model_` would be different from the features being
             ranked (for which the :attr:`model_` will be queried in order to
             calculate the importance values).
+        :param model: Use a prefit model instead of the stored :attr:`model_`.
         :param gen_sample: Generate trial sample from the :attr:`dataset_` using
             :attr:`test_size` and :attr:`stratify` values provided during init.
         :param sort: Sort results by importance values in descending order.
@@ -607,11 +609,15 @@ class eBoruta(BaseEstimator, TransformerMixin):
             y = self.dataset_.y
             trial_data = TrialData(x, x, y, y)
 
-        if fit:
-            self.model_.fit(
-                trial_data.x_train, trial_data.y_train, sample_weight=trial_data.w_train
-            )
-        imp = self.calculate_importance(self.model_, trial_data)
+        if model is None:
+            if fit:
+                self.model_.fit(
+                    trial_data.x_train, trial_data.y_train,
+                    sample_weight=trial_data.w_train
+                )
+            model = self.model_
+
+        imp = self.calculate_importance(model, trial_data)
 
         df = pd.DataFrame({"Feature": trial_data.x_test.columns, "Importance": imp})
         if sort:
