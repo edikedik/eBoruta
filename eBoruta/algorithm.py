@@ -404,7 +404,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
                 f"Calculated {self.percentile}-percentile threshold: {threshold}"
             )
 
-            hits = (real_imp > threshold).astype(np.int)
+            hits = (real_imp > threshold).astype(int)
             hits_total = hits.sum()
             LOGGER.info(
                 f"{round(hits_total / len(hits) * 100, 2)}% ({hits_total}) "
