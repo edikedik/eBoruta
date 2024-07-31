@@ -170,6 +170,9 @@ class eBoruta(BaseEstimator, TransformerMixin):
                 # feature importance in multiple objectives is a mean of such means
                 if isinstance(values, np.ndarray):
                     values = [values]
+                for i, v in enumerate(values):
+                    if len(v.shape) == 3:
+                        values[i] = v.mean(axis=-1)
                 importance_a = np.vstack([np.abs(v).mean(0) for v in values]).mean(0)
                 LOGGER.debug(
                     f"Calculated {importance_a.shape} importance array using "
