@@ -21,8 +21,8 @@ classifiers = [
 ]
 dependencies = [
     'scikit-learn>=1.0.2',
-    'numpy',
-    'pandas',
+    'numpy>=2.0.1',
+    'pandas>=2.2',
     'statsmodels',
     'tqdm',
     'scipy',
