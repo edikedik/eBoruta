@@ -1,5 +1,10 @@
 # *eBoruta* -- an *e*xtended *Boruta* algorithm
 
+[![Documentation status](https://readthedocs.org/projects/eboruta/badge/?version=latest)](https://eboruta.readthedocs.io/en/latest/?badge=latest)
+[![PyPi status](https://img.shields.io/pypi/v/eboruta.svg)](https://pypi.org/project/eBoruta)
+[![Python version](https://img.shields.io/pypi/pyversions/eBoruta.svg)](https://pypi.org/project/eBoruta)
+[![Hatch project](https://img.shields.io/badge/%F0%9F%A5%9A-Hatch-4051b5.svg)](https://github.com/pypa/hatch)
+
 <img src="./fig/eBoruta_diagram.png" alt="drawing" width="300"/>
 
 ## Introduction
