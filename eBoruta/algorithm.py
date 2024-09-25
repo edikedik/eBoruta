@@ -599,7 +599,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
                     )
                 features = list(self.features_.accepted_at_step(step))
 
-        if not features:
+        if len(features) == 0:
             return pd.DataFrame(columns=["Feature", "Importance"])
 
         if gen_sample:
