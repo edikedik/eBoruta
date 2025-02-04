@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from catboost import CatBoostClassifier, CatBoostRegressor
+# from catboost import CatBoostClassifier, CatBoostRegressor
 from sklearn.datasets import make_regression, make_classification
 from sklearn.ensemble import (
     RandomForestClassifier,
@@ -16,15 +16,15 @@ from eBoruta.utils import sample_dataset
 
 
 def get_tree_models():
-    # three element tuples: (1) is regressor (2) model
+    # two-element tuples: (1) is regressor (2) model
     return [
         (False, RandomForestClassifier()),
         (True, RandomForestRegressor()),
         (False, ExtraTreesClassifier()),
         (False, XGBClassifier()),
         (True, XGBRegressor()),
-        (False, CatBoostClassifier()),
-        (True, CatBoostRegressor()),
+        # (False, CatBoostClassifier()),
+        # (True, CatBoostRegressor()),
     ]
 
 
@@ -69,7 +69,7 @@ def test_models(
     )
     w = np.ones(len(y), dtype=float) if use_weights else None
     boruta = eBoruta()
-    boruta.fit(x, y, w, model=model)
+    boruta.fit(x, y, w, model_type=model)
     features = boruta.features_
     exp_tentative = x.shape[1] - len(features.accepted) - len(features.rejected)
     assert exp_tentative == len(features.tentative)

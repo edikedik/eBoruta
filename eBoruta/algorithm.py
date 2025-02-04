@@ -4,6 +4,7 @@ A module containing eBoruta masterclass encapsulating algorithm's execution.
 from __future__ import annotations
 
 import logging
+import typing as t
 from collections import abc
 from copy import deepcopy
 from inspect import signature
@@ -32,19 +33,19 @@ class eBoruta(BaseEstimator, TransformerMixin):
     """
 
     def __init__(
-            self,
-            n_iter: int = 30,
-            classification: bool = True,
-            percentile: int = 100,
-            pvalue: float = 0.05,
-            test_size: int | float = 0,
-            test_stratify: bool = False,
-            shap_tree: bool = True,
-            shap_gpu_tree: bool = False,
-            shap_approximate: bool = False,
-            shap_check_additivity: bool = False,
-            importance_getter: ImportanceGetter | None = None,
-            verbose: int = 1,
+        self,
+        n_iter: int = 30,
+        classification: bool = True,
+        percentile: int = 100,
+        pvalue: float = 0.05,
+        test_size: int | float = 0,
+        test_stratify: bool = False,
+        shap_tree: bool = True,
+        shap_gpu_tree: bool = False,
+        shap_approximate: bool = False,
+        shap_check_additivity: bool = False,
+        importance_getter: ImportanceGetter | None = None,
+        verbose: int = 1,
     ):
         """
         :param n_iter: The number of trials to run the algorithm.
@@ -133,8 +134,20 @@ class eBoruta(BaseEstimator, TransformerMixin):
             values = np.mean(values, axis=0)
         return values
 
+    def _init_model(self, model_type: t.Type[_E] | None) -> _E:
+        kw = self.model_init_kwargs_
+        if model_type is None:
+            if self.classification:
+                model = RandomForestClassifier(**kw)
+            else:
+                model = RandomForestRegressor(**kw)
+        else:
+            model = model_type(**kw)
+
+        return model
+
     def calculate_importance(
-            self, model: _E, trial_data: TrialData, abs_: bool = True
+        self, model: _E, trial_data: TrialData, abs_: bool = True
     ) -> np.ndarray:
         """
         :param model: Estimator with `fit` method. In case of using `shap`
@@ -187,7 +200,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         return importance_a
 
     def stat_tests(
-            self, features: Features, iter_i: int
+        self, features: Features, iter_i: int
     ) -> tuple[np.ndarray, np.ndarray]:
         # TODO: should I elaborate docs explaining the calculations here?
         """
@@ -215,7 +228,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         return accepted, rejected
 
     def _call_callbacks(
-            self, trial_data: TrialData, callbacks: abc.Sequence[Callback], **kwargs
+        self, trial_data: TrialData, callbacks: abc.Sequence[Callback], **kwargs
     ) -> CallbackReturn:
         for c in callbacks:
             LOGGER.debug(f"Running callback {c}")
@@ -226,11 +239,11 @@ class eBoruta(BaseEstimator, TransformerMixin):
 
     @staticmethod
     def _report_trial(
-            features: Features,
-            accepted: np.ndarray,
-            rejected: np.ndarray,
-            tentative: np.ndarray,
-            pbar: tqdm | None = None,
+        features: Features,
+        accepted: np.ndarray,
+        rejected: np.ndarray,
+        tentative: np.ndarray,
+        pbar: tqdm | None = None,
     ) -> tuple[dict[str, int], dict[str, int]]:
         names = features.names[tentative]
         accepted_names = names[accepted]
@@ -263,7 +276,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         return counts_round, counts_total
 
     def report_features(
-            self, features: Features | None = None, full: bool = False
+        self, features: Features | None = None, full: bool = False
     ) -> str:
         """
         Create a text report of the optimization progress. It's sane
@@ -312,41 +325,38 @@ class eBoruta(BaseEstimator, TransformerMixin):
         return msg
 
     def fit(
-            self,
-            x: _X,
-            y: _Y,
-            sample_weight: np.ndarray | None = None,
-            model: _E | None = None,
-            callbacks_trial_start: abc.Sequence[Callback] | None = None,
-            callbacks_trial_end: abc.Sequence[Callback] | None = None,
-            **kwargs,
+        self,
+        x: _X,
+        y: _Y,
+        sample_weight: np.ndarray | None = None,
+        model_type: t.Type[_E] | None = None,
+        callbacks_trial_start: abc.Sequence[Callback] | None = None,
+        callbacks_trial_end: abc.Sequence[Callback] | None = None,
+        model_init_kwargs: dict[str, t.Any] | None = None,
+        **kwargs,
     ) -> eBoruta:
         """
-        Train the boruta algorithm.
+        Fit the boruta algorithm.
 
         :param x: Features collection as a 2D array or a ``pd.DataFrame``.
         :param y: Response variable(s).
         :param sample_weight: Optional sample weight for each instance in ``x``
-            for models that support it in ``fit`` method.
-        :param model: An arbitrary model. If ``None``, use
-            :class:`RandomForestClassifier` if :attr:`classification` is
-            ``True``, otherwise use :class:`RandomForestRegressor`.
+            for models that support it within the ``fit()`` method.
+        :param model_type: An uninitialized estimator type with a ``fit(x, y)``
+            and ``predict(x)`` methods. If ``None``,
+            use :class:`RandomForestClassifier` if :attr:`classification`
+            is ``True`` else use :class:`RandomForestRegressor`.
         :param callbacks_trial_start: Callbacks to call at each trial's start.
         :param callbacks_trial_end: Callbacks to call at each trial's end.
+        :param model_init_kwargs: Optional keyword arguments to initialize the
+            estimator type with. If not provided, it is assumed that the
+            estimator can be initialized without any arguments.
         :param kwargs: Passed to ``model.fit()`` method.
-        :return:
+        :return: :class:`eBoruta` object.
         """
         self.dataset_ = Dataset(x, y, sample_weight)
         self.features_ = Features(self.dataset_.x.columns.to_numpy())
-        if model is None:
-            if self.classification:
-                self.model_ = RandomForestClassifier()
-            else:
-                self.model_ = RandomForestRegressor()
-        else:
-            self.model_ = model
-
-        self._check_model(self.model_)
+        self.model_init_kwargs_ = {} if model_init_kwargs is None else model_init_kwargs
 
         iters = range(1, self.n_iter + 1)
         if self.verbose > 0:
@@ -365,6 +375,8 @@ class eBoruta(BaseEstimator, TransformerMixin):
             LOGGER.info(
                 f"Trial {trial_n}: sampled trial data with shapes {trial_data.shapes}"
             )
+            self.model_ = self._init_model(model_type)
+            self._check_model(self.model_)
 
             if callbacks_trial_start is not None:
                 (
@@ -429,7 +441,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
             self.features_.accepted_mask[self.features_.tentative_mask] = accepted
             self.features_.rejected_mask[self.features_.tentative_mask] = rejected
             self.features_.tentative_mask = (
-                    ~self.features_.accepted_mask & ~self.features_.rejected_mask
+                ~self.features_.accepted_mask & ~self.features_.rejected_mask
             )
             decisions = np.zeros(len(self.features_.names), dtype=int)
             decisions[self.features_.accepted_mask] = 1
@@ -551,13 +563,13 @@ class eBoruta(BaseEstimator, TransformerMixin):
         return features
 
     def rank(
-            self,
-            features: abc.Sequence[str] | np.ndarray | None = None,
-            step: int | None = None,
-            fit: bool = True,
-            model: _E | None = None,
-            gen_sample: bool = False,
-            sort: bool = False,
+        self,
+        features: abc.Sequence[str] | np.ndarray | None = None,
+        step: int | None = None,
+        fit: bool = True,
+        model: _E | None = None,
+        gen_sample: bool = False,
+        sort: bool = False,
     ) -> pd.DataFrame:
         """
         Rank (sort) features by feature importance values.
@@ -615,8 +627,9 @@ class eBoruta(BaseEstimator, TransformerMixin):
         if model is None:
             if fit:
                 self.model_.fit(
-                    trial_data.x_train, trial_data.y_train,
-                    sample_weight=trial_data.w_train
+                    trial_data.x_train,
+                    trial_data.y_train,
+                    sample_weight=trial_data.w_train,
                 )
             model = self.model_
 
