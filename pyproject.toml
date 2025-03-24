@@ -29,7 +29,7 @@ dependencies = [
     'statsmodels',
     'tqdm',
     'scipy',
-    'shap>=0.40.0'
+    'shap>=0.47.0'
 ]
 dynamic = ["version"]
 
