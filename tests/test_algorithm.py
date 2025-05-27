@@ -30,8 +30,8 @@ def get_tree_models():
 
 def get_non_tree_models():
     return [
-        (True, AdaBoostRegressor),
-        (False, RidgeClassifier),
+        # (True, AdaBoostRegressor),
+        # (False, RidgeClassifier),
         (False, LogisticRegression),
     ]
 

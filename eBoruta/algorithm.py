@@ -15,6 +15,7 @@ import shap
 from scipy.stats import binomtest
 from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.linear_model import LogisticRegression
 from sklearn.utils.validation import check_is_fitted
 from statsmodels.stats.multitest import fdrcorrection
 from tqdm.auto import tqdm
@@ -40,7 +41,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         pvalue: float = 0.05,
         test_size: int | float = 0,
         test_stratify: bool = False,
-        shap_tree: bool = True,
+        shap: bool = True,
         shap_gpu_tree: bool = False,
         shap_approximate: bool = False,
         shap_check_additivity: bool = False,
@@ -59,12 +60,13 @@ class eBoruta(BaseEstimator, TransformerMixin):
             Can be a number or a fraction.
         :param test_stratify: Stratify the test examples based on the `y` class
             values to balance the split.
-        :param shap_tree: Use :class:`shap.Tree` explainer.
+        :param shap: Use shap explainer.
         :param shap_gpu_tree: Use :class:`shap.GPUTree` explainer.
         :param shap_approximate: Approximate shap importance values.
             Caution! some estimators may not support it (e.g., CatBoost).
+            Ignored for linear models.
         :param shap_check_additivity: Passed to the explainer.
-            Consult with `shap` documentation.
+            Consult with `shap` documentation. Ignored for linear models.
         :param importance_getter: A callable accepting either an estimator or
             an estimator and `TrialData` instance and returning a numpy array
             of length equal to the number of features in `TrialData.x_test`.
@@ -78,7 +80,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
         self.classification = classification
         self.test_stratify = test_stratify
         self.test_size = test_size
-        self.shap_tree = shap_tree
+        self.shap = shap
         self.shap_gpu_tree = shap_gpu_tree
         self.shap_approximate = shap_approximate
         self.shap_check_additivity = shap_check_additivity
@@ -166,16 +168,23 @@ class eBoruta(BaseEstimator, TransformerMixin):
                 importance_a = self.importance_getter(model)
             LOGGER.debug(f"Got array {importance_a.shape} of builtin importance_a")
         else:
-            if self.shap_tree or self.shap_gpu_tree:
-                explainer_type = (
-                    shap.GPUTreeExplainer if self.shap_gpu_tree else shap.TreeExplainer
-                )
-                explainer = explainer_type(model)
-                values = explainer.shap_values(
-                    trial_data.x_test,
-                    approximate=self.shap_approximate,
-                    check_additivity=self.shap_check_additivity,
-                )
+            if self.shap or self.shap_gpu_tree:
+                if self.shap_gpu_tree:
+                    explainer = shap.GPUTreeExplainer(model)
+                elif isinstance(model, LogisticRegression):
+                    explainer = shap.Explainer(model, trial_data.x_train)
+                else:
+                    explainer = shap.Explainer(model)
+                if isinstance(explainer, shap.LinearExplainer):
+                    values = explainer.shap_values(
+                        trial_data.x_test
+                    )
+                else:
+                    values = explainer.shap_values(
+                        trial_data.x_test,
+                        approximate=self.shap_approximate,
+                        check_additivity=self.shap_check_additivity,
+                    )
                 # values is matrix of the same shape as x in case of single
                 # objective, and a list of such matrices in case of multi-objective
                 # classification/regression.
@@ -189,10 +198,10 @@ class eBoruta(BaseEstimator, TransformerMixin):
                 importance_a = np.vstack([np.abs(v).mean(0) for v in values]).mean(0)
                 LOGGER.debug(
                     f"Calculated {importance_a.shape} importance array using "
-                    f"{explainer_type.__name__} explainer"
+                    f"{explainer.__class__.__name__} explainer"
                 )
             else:
-                importance_a = self._get_importance(self.model_)
+                importance_a = self._get_importance(model)
 
         if abs_:
             importance_a = np.abs(importance_a)
