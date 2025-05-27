@@ -50,6 +50,9 @@ exclude = ["notebooks", "fig"]
 [tool.hatch.build.targets.wheel]
 only-include = ["eBoruta"]
 
+[[tool.hatch.envs.hatch-test.matrix]]
+python = ["3.12", "3.11", "3.10"]
+
 [tool.coverage.run]
 branch = true
 parallel = true

@@ -6,9 +6,12 @@ from sklearn.ensemble import (
     RandomForestClassifier,
     RandomForestRegressor,
     ExtraTreesClassifier,
+    HistGradientBoostingClassifier,
+    HistGradientBoostingRegressor,
     # AdaBoostRegressor,
 )
 from sklearn.linear_model import RidgeClassifier, LogisticRegression
+from sklearn.svm import LinearSVC, LinearSVR
 from xgboost import XGBClassifier, XGBRegressor
 
 from eBoruta import eBoruta
@@ -23,6 +26,8 @@ def get_tree_models():
         (False, ExtraTreesClassifier),
         (False, XGBClassifier),
         (True, XGBRegressor),
+        (False, HistGradientBoostingClassifier),
+        (True, HistGradientBoostingRegressor),
         # (False, CatBoostClassifier),
         # (True, CatBoostRegressor),
     ]
@@ -33,6 +38,8 @@ def get_non_tree_models():
         # (True, AdaBoostRegressor),
         (False, RidgeClassifier),
         (False, LogisticRegression),
+        (False, LinearSVC),
+        (True, LinearSVR),
     ]
 
 

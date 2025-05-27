@@ -15,7 +15,6 @@ import shap
 from scipy.stats import binomtest
 from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.linear_model._base import LinearClassifierMixin
 from sklearn.utils.validation import check_is_fitted
 from statsmodels.stats.multitest import fdrcorrection
 from tqdm.auto import tqdm
@@ -171,10 +170,8 @@ class eBoruta(BaseEstimator, TransformerMixin):
             if self.shap or self.shap_gpu_tree:
                 if self.shap_gpu_tree:
                     explainer = shap.GPUTreeExplainer(model)
-                elif isinstance(model, LinearClassifierMixin):
-                    explainer = shap.Explainer(model, trial_data.x_train)
                 else:
-                    explainer = shap.Explainer(model)
+                    explainer = shap.Explainer(model, trial_data.x_train)
                 if isinstance(explainer, shap.LinearExplainer):
                     values = explainer.shap_values(
                         trial_data.x_test
