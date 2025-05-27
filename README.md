@@ -66,7 +66,8 @@ However, you're encouraged to explore documentation [here](https://eboruta.readt
 Install [hatch](https://hatch.pypa.io/dev/).
 
 Run tests
-```
+
+```bash
 hatch test
 ```
 

@@ -6,7 +6,7 @@ from sklearn.ensemble import (
     RandomForestClassifier,
     RandomForestRegressor,
     ExtraTreesClassifier,
-    AdaBoostRegressor,
+    # AdaBoostRegressor,
 )
 from sklearn.linear_model import RidgeClassifier, LogisticRegression
 from xgboost import XGBClassifier, XGBRegressor
