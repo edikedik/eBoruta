@@ -12,6 +12,8 @@ from sklearn.ensemble import (
 )
 from sklearn.linear_model import RidgeClassifier, LogisticRegression
 from sklearn.svm import LinearSVC, LinearSVR
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier, XGBRegressor
 
 from eBoruta import eBoruta
@@ -21,13 +23,13 @@ from eBoruta.utils import sample_dataset
 def get_tree_models():
     # two-element tuples: (1) is regressor (2) model
     return [
-        (False, RandomForestClassifier),
-        (True, RandomForestRegressor),
-        (False, ExtraTreesClassifier),
-        (False, XGBClassifier),
-        (True, XGBRegressor),
-        (False, HistGradientBoostingClassifier),
-        (True, HistGradientBoostingRegressor),
+        (False, RandomForestClassifier, None),
+        (True, RandomForestRegressor, None),
+        (False, ExtraTreesClassifier, None),
+        (False, XGBClassifier, None),
+        (True, XGBRegressor, None),
+        (False, HistGradientBoostingClassifier, None),
+        (True, HistGradientBoostingRegressor, None),
         # (False, CatBoostClassifier),
         # (True, CatBoostRegressor),
     ]
@@ -36,10 +38,11 @@ def get_tree_models():
 def get_non_tree_models():
     return [
         # (True, AdaBoostRegressor),
-        (False, RidgeClassifier),
-        (False, LogisticRegression),
-        (False, LinearSVC),
-        (True, LinearSVR),
+        (False, RidgeClassifier, None),
+        (False, LogisticRegression, None),
+        (False, LinearSVC, None),
+        (True, LinearSVR, None),
+        (False, Pipeline, {"steps": [("pre", StandardScaler()), ("model", LinearSVC(C=1.0, class_weight="balanced"))]})
     ]
 
 
@@ -70,13 +73,13 @@ def test_models(
     n_features,
     n_informative,
 ):
-    is_reg, model = model
+    is_reg, model, model_init_kwargs = model
     x, y = make_dataset(
         is_reg, n_features=n_features, n_samples=n_samples, n_informative=n_informative
     )
     w = np.ones(len(y), dtype=float) if use_weights else None
     boruta = eBoruta()
-    boruta.fit(x, y, w, model_type=model)
+    boruta.fit(x, y, w, model_type=model, model_init_kwargs=model_init_kwargs)
     features = boruta.features_
     exp_tentative = x.shape[1] - len(features.accepted) - len(features.rejected)
     assert exp_tentative == len(features.tentative)
@@ -95,13 +98,13 @@ def test_non_tree_models(
     n_features,
     n_informative,
 ):
-    is_reg, model = model
+    is_reg, model, model_init_kwargs = model
     x, y = make_dataset(
         is_reg, n_features=n_features, n_samples=n_samples, n_informative=n_informative
     )
     w = np.ones(len(y), dtype=float) if use_weights else None
     boruta = eBoruta()
-    boruta.fit(x, y, w, model_type=model)
+    boruta.fit(x, y, w, model_type=model, model_init_kwargs=model_init_kwargs)
     features = boruta.features_
     exp_tentative = x.shape[1] - len(features.accepted) - len(features.rejected)
     assert exp_tentative == len(features.tentative)
