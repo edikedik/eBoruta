@@ -61,6 +61,16 @@ However, you're encouraged to explore documentation [here](https://eboruta.readt
 
 `eBoruta` is still undergoing development. Not all the model types were tested. We encourage you to raise an issue if you find a bug, an example where it fails, or you want to propose a new feature/interface improvement/whatever.
 
+## Development
+
+Install [hatch](https://hatch.pypa.io/dev/).
+
+Run tests
+
+```bash
+hatch test
+```
+
 ## References
 
 [1] Miron B. Kursa and Witold R. Rudnicki. “Feature Selection with the Boruta Package”. In: Journal of Statistical Software 36.11 (2010), pp. 1–13.

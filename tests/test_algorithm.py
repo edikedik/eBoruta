@@ -6,9 +6,12 @@ from sklearn.ensemble import (
     RandomForestClassifier,
     RandomForestRegressor,
     ExtraTreesClassifier,
-    AdaBoostRegressor,
+    HistGradientBoostingClassifier,
+    HistGradientBoostingRegressor,
+    # AdaBoostRegressor,
 )
 from sklearn.linear_model import RidgeClassifier, LogisticRegression
+from sklearn.svm import LinearSVC, LinearSVR
 from xgboost import XGBClassifier, XGBRegressor
 
 from eBoruta import eBoruta
@@ -18,21 +21,25 @@ from eBoruta.utils import sample_dataset
 def get_tree_models():
     # two-element tuples: (1) is regressor (2) model
     return [
-        (False, RandomForestClassifier()),
-        (True, RandomForestRegressor()),
-        (False, ExtraTreesClassifier()),
-        (False, XGBClassifier()),
-        (True, XGBRegressor()),
-        # (False, CatBoostClassifier()),
-        # (True, CatBoostRegressor()),
+        (False, RandomForestClassifier),
+        (True, RandomForestRegressor),
+        (False, ExtraTreesClassifier),
+        (False, XGBClassifier),
+        (True, XGBRegressor),
+        (False, HistGradientBoostingClassifier),
+        (True, HistGradientBoostingRegressor),
+        # (False, CatBoostClassifier),
+        # (True, CatBoostRegressor),
     ]
 
 
 def get_non_tree_models():
     return [
-        (True, AdaBoostRegressor()),
-        (False, RidgeClassifier()),
-        (False, LogisticRegression()),
+        # (True, AdaBoostRegressor),
+        (False, RidgeClassifier),
+        (False, LogisticRegression),
+        (False, LinearSVC),
+        (True, LinearSVR),
     ]
 
 
@@ -57,6 +64,31 @@ def test_simple_case():
 @pytest.mark.parametrize("n_features", [20])
 @pytest.mark.parametrize("n_informative", [5])
 def test_models(
+    model,
+    use_weights,
+    n_samples,
+    n_features,
+    n_informative,
+):
+    is_reg, model = model
+    x, y = make_dataset(
+        is_reg, n_features=n_features, n_samples=n_samples, n_informative=n_informative
+    )
+    w = np.ones(len(y), dtype=float) if use_weights else None
+    boruta = eBoruta()
+    boruta.fit(x, y, w, model_type=model)
+    features = boruta.features_
+    exp_tentative = x.shape[1] - len(features.accepted) - len(features.rejected)
+    assert exp_tentative == len(features.tentative)
+    assert len(features.accepted) > 0
+
+
+@pytest.mark.parametrize("model", get_non_tree_models())
+@pytest.mark.parametrize("use_weights", [True, False])
+@pytest.mark.parametrize("n_samples", [100])
+@pytest.mark.parametrize("n_features", [20])
+@pytest.mark.parametrize("n_informative", [5])
+def test_non_tree_models(
     model,
     use_weights,
     n_samples,
