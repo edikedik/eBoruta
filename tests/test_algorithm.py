@@ -6,8 +6,6 @@ from sklearn.ensemble import (
     RandomForestClassifier,
     RandomForestRegressor,
     ExtraTreesClassifier,
-    HistGradientBoostingClassifier,
-    HistGradientBoostingRegressor,
     # AdaBoostRegressor,
 )
 from sklearn.linear_model import RidgeClassifier, LogisticRegression
@@ -28,8 +26,6 @@ def get_tree_models():
         (False, ExtraTreesClassifier, None),
         (False, XGBClassifier, None),
         (True, XGBRegressor, None),
-        (False, HistGradientBoostingClassifier, None),
-        (True, HistGradientBoostingRegressor, None),
         # (False, CatBoostClassifier),
         # (True, CatBoostRegressor),
     ]

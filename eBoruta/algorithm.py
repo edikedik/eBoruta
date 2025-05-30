@@ -172,6 +172,7 @@ class eBoruta(BaseEstimator, TransformerMixin):
                 if self.shap_gpu_tree:
                     explainer = shap.GPUTreeExplainer(model)
                 elif isinstance(model, Pipeline):
+                    # Treat pipeline as a black box model
                     explainer = shap.PermutationExplainer(model.predict, trial_data.x_train)
                 else:
                     explainer = shap.Explainer(model, trial_data.x_train)
