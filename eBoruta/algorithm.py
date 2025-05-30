@@ -15,6 +15,7 @@ import shap
 from scipy.stats import binomtest
 from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.pipeline import Pipeline
 from sklearn.utils.validation import check_is_fitted
 from statsmodels.stats.multitest import fdrcorrection
 from tqdm.auto import tqdm
@@ -170,9 +171,12 @@ class eBoruta(BaseEstimator, TransformerMixin):
             if self.shap or self.shap_gpu_tree:
                 if self.shap_gpu_tree:
                     explainer = shap.GPUTreeExplainer(model)
+                elif isinstance(model, Pipeline):
+                    # Treat pipeline as a black box model
+                    explainer = shap.PermutationExplainer(model.predict, trial_data.x_train)
                 else:
                     explainer = shap.Explainer(model, trial_data.x_train)
-                if isinstance(explainer, shap.LinearExplainer):
+                if isinstance(explainer, shap.LinearExplainer) or isinstance(explainer, shap.PermutationExplainer):
                     values = explainer.shap_values(
                         trial_data.x_test
                     )
@@ -357,6 +361,8 @@ class eBoruta(BaseEstimator, TransformerMixin):
         :param model_init_kwargs: Optional keyword arguments to initialize the
             estimator type with. If not provided, it is assumed that the
             estimator can be initialized without any arguments.
+            If model_type is a Pipeline, the last step must be a supported 
+            classifier or regressor named ``model``.
         :param kwargs: Passed to ``model.fit()`` method.
         :return: :class:`eBoruta` object.
         """
@@ -393,12 +399,20 @@ class eBoruta(BaseEstimator, TransformerMixin):
                     kwargs,
                 ) = self._call_callbacks(trial_data, callbacks_trial_start, **kwargs)
 
-            self.model_.fit(
-                trial_data.x_train,
-                trial_data.y_train,
-                sample_weight=trial_data.w_train,
-                **kwargs,
-            )
+            if isinstance(self.model_, Pipeline):
+                self.model_.fit(
+                    trial_data.x_train,
+                    trial_data.y_train,
+                    model__sample_weight=trial_data.w_train,
+                    **kwargs,
+                )
+            else:
+                self.model_.fit(
+                    trial_data.x_train,
+                    trial_data.y_train,
+                    sample_weight=trial_data.w_train,
+                    **kwargs,
+                )
             LOGGER.debug("Fitted the model")
 
             imp = self.calculate_importance(self.model_, trial_data)
