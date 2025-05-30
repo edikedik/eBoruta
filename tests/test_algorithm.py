@@ -11,7 +11,7 @@ from sklearn.ensemble import (
 from sklearn.linear_model import RidgeClassifier, LogisticRegression
 from sklearn.svm import LinearSVC, LinearSVR
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.kernel_approximation import Nystroem
 from xgboost import XGBClassifier, XGBRegressor
 
 from eBoruta import eBoruta
@@ -38,7 +38,7 @@ def get_non_tree_models():
         (False, LogisticRegression, None),
         (False, LinearSVC, None),
         (True, LinearSVR, None),
-        (False, Pipeline, {"steps": [("pre", StandardScaler()), ("model", LinearSVC(C=1.0, class_weight="balanced"))]})
+        (False, Pipeline, {"steps": [("pre", Nystroem(kernel="rbf")), ("model", LinearSVC(C=1.0, class_weight="balanced"))]})
     ]
 
 
