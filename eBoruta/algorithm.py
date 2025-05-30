@@ -361,6 +361,8 @@ class eBoruta(BaseEstimator, TransformerMixin):
         :param model_init_kwargs: Optional keyword arguments to initialize the
             estimator type with. If not provided, it is assumed that the
             estimator can be initialized without any arguments.
+            If model_type is a Pipeline, the last step must be a supported 
+            classifier or regressor named ``model``.
         :param kwargs: Passed to ``model.fit()`` method.
         :return: :class:`eBoruta` object.
         """
